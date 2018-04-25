@@ -1,4 +1,4 @@
-import eddy.extraction as ex
+import eddytools.extraction as ex
 import sqlalchemy as sq
 
 
