@@ -1,4 +1,4 @@
-# # eddy
+# eddy
 
 [![Build Status](https://travis-ci.org/edugonza/eddy.svg?branch=master)](https://travis-ci.org/edugonza/eddy)
 

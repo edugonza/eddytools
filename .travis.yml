@@ -2,7 +2,7 @@ sudo: required
 services:
         - docker
 before_install:
-        - cd data && sh build-image.sh && sh run-image.sh
+        - cd data && sh build-image.sh && sh run-image.sh && cd ../
 
 language: python
 python:
@@ -11,4 +11,4 @@ install:
         - pip install -r requirements.txt
         - pip install -r requirements_test.txt
 script:
-        - python -m pytest test/
+        - python -m pytest -v -s test/
