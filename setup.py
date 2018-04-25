@@ -1,10 +1,10 @@
 from setuptools import setup
 
 setup(
-        name='eddy',
+        name='eddytools',
         use_scm_version=True,
         description='Event Data Discovery tool',
-        url='https://github.com/edugonza/eddy',
+        url='https://github.com/edugonza/eddytools',
         author='Eduardo Gonzalez Lopez de Murillas',
         author_email='edu.gonza.lopez@gmail.com',
         keywords='process mining events data extraction databases openslex',
@@ -18,5 +18,5 @@ setup(
         tests_require=['pytest'],
         install_requires=['sqlalchemy','setuptools','psycopg2'],
         python_requires='>=3.6',
-        packages = ['eddy'],
+        packages = ['eddytools'],
 )
