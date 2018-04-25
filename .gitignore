@@ -5,3 +5,4 @@ __pycache__
 .eggs
 .coverage
 *.swp
+data/sample.slexmm

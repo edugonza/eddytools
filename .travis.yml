@@ -12,3 +12,4 @@ install:
         - pip install -r requirements_test.txt
 script:
         - coverage run --source=eddy setup.py test
+        - coveralls
