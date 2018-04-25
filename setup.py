@@ -1,6 +1,22 @@
 from setuptools import setup
 
 setup(
-        setup_requires=['pytest-runner'],
+        name='eddy',
+        use_scm_version=True,
+        description='Event Data Discovery tool',
+        url='https://github.com/edugonza/eddy',
+        author='Eduardo Gonzalez Lopez de Murillas',
+        author_email='edu.gonza.lopez@gmail.com',
+        keywords='process mining events data extraction databases openslex',
+        license='MIT',
+        classifiers=[
+            'Development Status :: 3 - Alpha',
+            'License :: OSI Approved :: MIT License',
+            'Programming Language :: Python :: 3.6',
+        ],
+        setup_requires=['pytest-runner','setuptools_scm'],
         tests_require=['pytest'],
-        )
+        install_requires=['sqlalchemy','setuptools','psycopg2'],
+        python_requires='>=3.6',
+        packages = ['eddy'],
+)
