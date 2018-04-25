@@ -17,3 +17,5 @@ RUN chown postgres /data
 COPY ds21/* /data/
 
 ADD setup.sh /docker-entrypoint-initdb.d/
+
+HEALTHCHECK CMD pg_isready -U postgres
