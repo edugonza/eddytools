@@ -19,4 +19,6 @@ setup(
         install_requires=['sqlalchemy','setuptools','psycopg2'],
         python_requires='>=3.6',
         packages = ['eddytools'],
+        package_data={'eddytools': ['resources']},
+        include_package_data=True,
 )
