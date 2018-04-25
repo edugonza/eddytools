@@ -11,4 +11,4 @@ install:
         - pip install -r requirements.txt
         - pip install -r requirements_test.txt
 script:
-        - python -m pytest -v -s test/
+        - coverage run --source=eddy setup.py test
