@@ -1,4 +1,4 @@
-#/bin/bash
+#!/usr/bin/env bash
 
 if [ $BUILD_DATA -eq 1 ]; then
   cd /data
