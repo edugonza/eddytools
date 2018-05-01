@@ -57,10 +57,22 @@ And finally, we execute the tests with:
 python setup.py test
 ```
 
-To check code coverage, the previous command can be substituted by:
+To gather code coverage data, the previous command can be substituted by:
 
 ```
 coverage run --source=eddytools setup.py test
+```
+
+To report on the results:
+
+```
+coverage report
+```
+
+And to generate the html output:
+
+```
+coverage html
 ```
 
 ## Versioning

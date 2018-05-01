@@ -11,3 +11,4 @@ dist/
 *.egg-info/
 /data/dump*
 /test/mimic.py
+/htmlcov/
