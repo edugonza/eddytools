@@ -9,3 +9,5 @@ data/sample.slexmm
 build/
 dist/
 *.egg-info/
+/data/dump*
+/test/mimic.py

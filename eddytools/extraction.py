@@ -92,11 +92,11 @@ def create_db_engine(dialect, username, password, host, port, database, **params
 
 # automap the source database into a SQLAlchemy Base object
 def automap_db(db_engine, schema):
-    print("Automapping DB")
+    # print("Automapping DB")
     Base = automap_base()
     Base.metadata.schema = schema
     Base.prepare(db_engine, reflect=True)
-    print("Automap finished")
+    # print("Automap finished")
     return Base, Base.metadata
 
 

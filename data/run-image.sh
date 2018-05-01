@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 BUILD_DATA=1
 HOST_PORT=5556
 POSTGRES_PASSWORD='postgres'
