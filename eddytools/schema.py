@@ -45,7 +45,7 @@ def retrieve_pks(db_engine: Engine, schema, classes=None) -> dict:
     return pks
 
 
-def discover_pks(db_engine: Engine, schema, classes):
+def discover_pks(db_engine: Engine, schema, classes=None):
     base: DeclarativeMeta
     base_metadata: MetaData
     base, base_metadata = ex.automap_db(db_engine, schema)
@@ -167,7 +167,7 @@ def retrieve_fks(db_engine: Engine, schema, classes=None) -> dict:
     return fks
 
 
-def discover_fks(db_engine: Engine, schema, pk_candidates, classes, max_fields_fk):
+def discover_fks(db_engine: Engine, schema, pk_candidates, classes=None, max_fields_fk=4):
     base: DeclarativeMeta
     base_metadata: MetaData
     base, base_metadata = ex.automap_db(db_engine, schema)
@@ -186,14 +186,14 @@ def discover_fks(db_engine: Engine, schema, pk_candidates, classes, max_fields_f
         candidates_t = []
         for n in tqdm(range(1, min(t.columns.__len__(), max_fields_fk)+1), desc='Exploring candidates of length'):
             combinations = itertools.combinations(t.columns, n)
-            for idx, comb in tqdm(enumerate(combinations), desc='Checking combinations'):
-                for candidate_pk_ref in get_candidate_pks_ref(pk_candidates, [str(col.type) for col in comb]):
-                    for mapping in check_inclusion(db_engine, t, comb, candidate_pk_ref, inclusion_cache):
+            for idx_comb, comb in tqdm(enumerate(combinations), desc='Checking combinations'):
+                for idx_pkcand, candidate_pk_ref in enumerate(get_candidate_pks_ref(pk_candidates, [str(col.type) for col in comb])):
+                    for idx_mapping, mapping in enumerate(check_inclusion(db_engine, t, comb, candidate_pk_ref, inclusion_cache)):
                         cand_fk = {
                             'table': t.name,
                             'schema': t.schema,
                             'fullname': t.fullname,
-                            'fk_name': "{}_{}_{}_fk".format(t.name, n, idx),
+                            'fk_name': "{}_{}_{}_{}_{}_fk".format(t.name, n, idx_comb, idx_pkcand, idx_mapping),
                             'fk_ref_pk': candidate_pk_ref['pk_name'],
                             'fk_ref_table': candidate_pk_ref['table'],
                             'fk_ref_table_fullname': candidate_pk_ref['fullname'],
@@ -345,3 +345,37 @@ def recall(tp: int, p: int):
         return tp / p
     else:
         return 1
+
+
+def create_custom_metadata(connection_params: dict, db_engine: Engine, schema: str, pks: dict, fks: dict):
+    base: DeclarativeMeta
+    base_metadata: MetaData
+    base, base_metadata = ex.automap_db(db_engine, schema)
+
+    # Discard any existing pk, uk or fk
+    t: Table
+    for t in base_metadata.tables.values():
+        t.constraints.clear()
+        t.primary_key = None
+        t.foreign_keys.clear()
+
+    # Add custom pk, uk, and fk
+    for c in pks:
+        t: Table = base_metadata.tables.get(c)
+        for idx, k in enumerate(pks[c]):
+            if idx == 0:
+                uk = PrimaryKeyConstraint(*k['pk_columns'])
+            else:
+                uk = UniqueConstraint(*k['pk_columns'])
+            t.append_constraint(uk)
+
+    for c in fks:
+        t: Table = base_metadata.tables.get(c)
+        for k in fks[c]:
+            refcolumns = ['{}.{}'.format(k['fk_ref_table_fullname'], col) for col in k['fk_ref_columns']]
+            fk = ForeignKeyConstraint(columns=k['fk_columns'],
+                                      refcolumns=refcolumns,
+                                      name=k['fk_name'])
+            t.append_constraint(fk)
+
+    return base_metadata

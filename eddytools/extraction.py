@@ -6,8 +6,9 @@ import psycopg2
 
 # SQLAlchemy imports
 from sqlalchemy import create_engine
-from sqlalchemy.schema import MetaData
-from sqlalchemy.schema import UniqueConstraint
+from sqlalchemy.schema import MetaData, Table
+from sqlalchemy.ext.declarative.api import DeclarativeMeta
+from sqlalchemy.schema import UniqueConstraint, PrimaryKeyConstraint
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy import types
 
@@ -146,7 +147,7 @@ rel_map: mapping (class_name, relationship_name) --> relationship_id in the Open
 '''
 
 
-def insert_metadata(mm_conn, mm_meta, Base, db_meta, dm_name):
+def insert_metadata(mm_conn, mm_meta, Base: DeclarativeMeta, db_meta: MetaData, dm_name):
     class_map = dict()
     attr_map = dict()
     rel_map = dict()
@@ -158,7 +159,8 @@ def insert_metadata(mm_conn, mm_meta, Base, db_meta, dm_name):
         dm_values = {'name': dm_name}
         res_ins_dm = insert_values(mm_conn, dm_table, dm_values)
         dm_id = res_ins_dm.inserted_primary_key[0]
-        db_classes = Base.classes.keys()
+        #db_classes = Base.classes.keys() FIXME
+        db_classes = [t.name for t in db_meta.tables.values()]
         for c in db_classes:
             class_table = mm_meta.tables.get('class')
             class_values = {'datamodel_id': dm_id, 'name': c}
@@ -211,14 +213,20 @@ def insert_object(mm_conn, obj, source_table, class_name, class_map, attr_map, r
         obj_v_values = {'object_id': obj_id, 'start_timestamp': -2, 'end_timestamp': -1}
         res_ins_obj_v = insert_values(mm_conn, obj_v_table, obj_v_values)
         obj_v_id = res_ins_obj_v.inserted_primary_key[0]
-        pk_tuple = tuple(col.name for col in source_table.primary_key.columns)
-        pk_values_tuple = tuple(obj[col] for col in pk_tuple)
-        obj_v_map[(class_name, pk_tuple, pk_values_tuple)] = obj_v_id
+        # pk_tuple = tuple(col.name for col in source_table.primary_key.columns)
+        # pk_values_tuple = tuple(obj[col] for col in pk_tuple)
+        # obj_v_map[(class_name, pk_tuple, pk_values_tuple)] = obj_v_id
 
-        unique_constraints = [uc for uc in source_table.constraints if isinstance(uc, UniqueConstraint)]
+        unique_constraints = [uc for uc in source_table.constraints if isinstance(uc, (UniqueConstraint,
+                                                                                       PrimaryKeyConstraint))]
         for uc in unique_constraints:
             unique_tuple = tuple(col.name for col in uc)
             unique_values_tuple = tuple(obj[col] for col in unique_tuple)
+            obj_v_map[(class_name, unique_tuple, unique_values_tuple)] = obj_v_id
+
+        if not unique_constraints:
+            unique_tuple = tuple(col.name for col in source_table.columns)
+            unique_values_tuple = tuple(obj[col] for col in source_table.columns)
             obj_v_map[(class_name, unique_tuple, unique_values_tuple)] = obj_v_id
 
         # insert into attribute_value table
@@ -257,7 +265,7 @@ def insert_class_objects(mm_conn, mm_meta, db_conn, db_meta, class_name, class_m
 
 
 # insert the relations of one object into the OpenSLEX mm
-def insert_object_relations(mm_conn, mm_meta, obj, source_table, class_name, rel_map, obj_v_map):
+def insert_object_relations(mm_conn, mm_meta, obj, source_table: Table, class_name, rel_map, obj_v_map):
     trans = mm_conn.begin()
     try:
         rel_table = mm_meta.tables.get('relation')
@@ -269,11 +277,18 @@ def insert_object_relations(mm_conn, mm_meta, obj, source_table, class_name, rel
             )
             if target_obj_v_params in obj_v_map.keys():
                 target_obj_v_id = obj_v_map[target_obj_v_params]
-                source_obj_v_id = obj_v_map[(
-                    source_table.name,
-                    tuple(col.name for col in source_table.primary_key.columns),
-                    tuple(obj[col] for col in source_table.primary_key.columns)
-                )]
+                if not source_table.primary_key:
+                    source_obj_v_id = obj_v_map[(
+                        source_table.name,
+                        tuple(col.name for col in source_table.columns),
+                        tuple(obj[col] for col in source_table.columns)
+                    )]
+                else:
+                    source_obj_v_id = obj_v_map[(
+                        source_table.name,
+                        tuple(col.name for col in source_table.primary_key.columns),
+                        tuple(obj[col] for col in source_table.primary_key.columns)
+                    )]
                 rel_value = [{
                     'source_object_version_id': source_obj_v_id,
                     'target_object_version_id': target_obj_v_id,
@@ -284,7 +299,7 @@ def insert_object_relations(mm_conn, mm_meta, obj, source_table, class_name, rel
                 res_ins_rel = insert_values(mm_conn, rel_table, rel_value)
 
         trans.commit()
-    except:
+    except Exception:
         trans.rollback()
         raise
 
@@ -324,13 +339,15 @@ def insert_objects(mm_conn, mm_meta, db_conn, db_meta, classes, class_map, attr_
 
 
 def extract_to_mm(openslex_file_path, dialect, username, password, host, port, database, schema,
-                  overwrite=False, classes=None):
+                  overwrite=False, classes=None, metadata=None):
     # connect to the OpenSLEX mm
     try:
         create_mm(openslex_file_path, overwrite)
         mm_engine = create_mm_engine(openslex_file_path)
         db_engine = create_db_engine(dialect, username, password, host, port, database)
         Base, db_meta = automap_db(db_engine, schema)
+        if metadata:
+            db_meta = metadata
         mm_meta = get_mm_meta(mm_engine)
         dm_name = '{database}.{schema}'.format(database=database, schema=schema)
     except Exception as e:
@@ -359,10 +376,12 @@ def extract_to_mm(openslex_file_path, dialect, username, password, host, port, d
     print('connections opened')
     try:
         if classes is None:
-            classes = Base.classes.keys() # use this if you want to insert objects of all classes
+            #classes = Base.classes.keys() # use this if you want to insert objects of all classes FIXME
+            classes = [t.name for t in db_meta.tables.values()]
         obj_v_map = insert_objects(mm_conn, mm_meta, db_conn, db_meta, classes, class_map, attr_map, rel_map)
     except Exception as e:
         print('Exception: {e}'.format(e=e))
+        raise e
     mm_conn.close()
     db_conn.close()
     print('connections closed')
