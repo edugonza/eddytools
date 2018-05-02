@@ -63,5 +63,5 @@ def test_custom_metadata_extraction():
 
 
 if __name__ == '__main__':
-    #test_ds2()
+    test_ds2()
     test_custom_metadata_extraction()
