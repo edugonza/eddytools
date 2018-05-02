@@ -219,12 +219,15 @@ def insert_object(mm_conn, obj, source_table, class_name, class_map, attr_map, r
 
         unique_constraints = [uc for uc in source_table.constraints if isinstance(uc, (UniqueConstraint,
                                                                                        PrimaryKeyConstraint))]
+        notunique = True
         for uc in unique_constraints:
-            unique_tuple = tuple(col.name for col in uc)
-            unique_values_tuple = tuple(obj[col] for col in unique_tuple)
-            obj_v_map[(class_name, unique_tuple, unique_values_tuple)] = obj_v_id
+            if uc.columns:
+                notunique = False
+                unique_tuple = tuple(col.name for col in uc)
+                unique_values_tuple = tuple(obj[col] for col in unique_tuple)
+                obj_v_map[(class_name, unique_tuple, unique_values_tuple)] = obj_v_id
 
-        if not unique_constraints:
+        if notunique:
             unique_tuple = tuple(col.name for col in source_table.columns)
             unique_values_tuple = tuple(obj[col] for col in source_table.columns)
             obj_v_map[(class_name, unique_tuple, unique_values_tuple)] = obj_v_id
@@ -277,7 +280,7 @@ def insert_object_relations(mm_conn, mm_meta, obj, source_table: Table, class_na
             )
             if target_obj_v_params in obj_v_map.keys():
                 target_obj_v_id = obj_v_map[target_obj_v_params]
-                if not source_table.primary_key:
+                if not source_table.primary_key or not source_table.primary_key.columns:
                     source_obj_v_id = obj_v_map[(
                         source_table.name,
                         tuple(col.name for col in source_table.columns),
