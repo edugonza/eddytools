@@ -1,6 +1,5 @@
 sqlalchemy
 setuptools
-psycopg2
 jellyfish
 tqdm
 numpy
