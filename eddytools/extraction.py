@@ -1,8 +1,6 @@
 import os
 import time
-import sqlite3
 from pkg_resources import resource_stream
-import psycopg2
 
 # SQLAlchemy imports
 from sqlalchemy import create_engine
@@ -12,8 +10,9 @@ from sqlalchemy.schema import UniqueConstraint, PrimaryKeyConstraint
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy import types
 
+
 # OpenSLEX parameters
-_OPENSLEX_SCRIPT_PATH = resource_stream(__name__, 'resources/metamodel.sql')
+_OPENSLEX_SCRIPT_PATH = 'resources/metamodel.sql'
 
 
 # create a SQLite database file for the OpenSLEX mm and run the script to create all tables
@@ -40,17 +39,20 @@ def create_mm(mm_file_path, overwrite=False):
 
     try:
         print("Opening OpenSLEX MM")
-        conn = sqlite3.connect(mm_file_path)
+        mm_engine = create_mm_engine(mm_file_path)
+        conn = mm_engine.raw_connection()
         is_connected = True
         cursor = conn.cursor()
 
         print("Reading script")
-        script = _OPENSLEX_SCRIPT_PATH.read().decode()
+        stream = resource_stream(__name__, _OPENSLEX_SCRIPT_PATH)
+        script = stream.read().decode()
 
         print("Running script")
         cursor.executescript(script)
         conn.commit()
         conn.close()
+        mm_engine.dispose()
         is_connected = False
         print("OpenSLEX MM succesfully created")
 
@@ -58,8 +60,9 @@ def create_mm(mm_file_path, overwrite=False):
         if is_connected:
             print("Closing DB")
             conn.close()
+            mm_engine.dispose()
             is_connected = False
-        raise
+        raise e
 
 
 # create engine for the OpenSLEX mm using SQLAlchemy
@@ -387,6 +390,8 @@ def extract_to_mm(openslex_file_path, dialect, username, password, host, port, d
         raise e
     mm_conn.close()
     db_conn.close()
+    mm_engine.dispose()
+    db_engine.dispose()
     print('connections closed')
     t2 = time.time()
     time_diff = t2 - t1

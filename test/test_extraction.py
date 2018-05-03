@@ -35,16 +35,17 @@ def check_mm(openslex_file_path, connection_params):
         .where(text('O.class_id == CL.id AND CL.name == "customers"'))
     mm_res = mm_conn.execute(mm_q).fetchall()
     mm_conn.close()
+    mm_engine.dispose()
 
     db_engine = ex.create_db_engine(**connection_params)
     db_conn = db_engine.connect()
 
-    db_q = db_q = sq.select('*').select_from(text('public.customers'))
+    db_q = sq.select('*').select_from(text('public.customers'))
     db_res = db_conn.execute(db_q).fetchall()
     db_conn.close()
+    db_engine.dispose()
 
     check = db_res.__len__() == mm_res.__len__()
-    assert check
     print(check)
     return check
 
@@ -58,6 +59,8 @@ def test_custom_metadata_extraction():
     db_meta = es.create_custom_metadata(connection_params, db_engine,
                                         connection_params['schema'],
                                         discovered_pks, discovered_fks)
+
+    db_engine.dispose()
     ex.extract_to_mm(openslex_file_path, **connection_params, overwrite=True, metadata=db_meta)
     assert check_mm(openslex_file_path, connection_params)
 
