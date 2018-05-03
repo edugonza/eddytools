@@ -1,4 +1,5 @@
 sqlalchemy
+psycopg2
 setuptools
 jellyfish
 tqdm

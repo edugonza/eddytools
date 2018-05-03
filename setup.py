@@ -16,7 +16,7 @@ setup(
     ],
     setup_requires=['pytest-runner', 'setuptools_scm'],
     tests_require=['pytest'],
-    install_requires=['sqlalchemy', 'setuptools', 'jellyfish', 'tqdm', 'numpy'],
+    install_requires=['sqlalchemy', 'psycopg2', 'setuptools', 'jellyfish', 'tqdm', 'numpy'],
     python_requires='>=3.6',
     packages=['eddytools'],
     package_data={'eddytools': ['resources']},
