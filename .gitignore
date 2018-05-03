@@ -12,3 +12,4 @@ dist/
 /data/dump*
 /test/mimic.py
 /htmlcov/
+/data/postgresql/
