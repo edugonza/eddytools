@@ -4,3 +4,4 @@ setuptools
 jellyfish
 tqdm
 numpy
+networkx

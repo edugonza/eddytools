@@ -14,7 +14,7 @@ connection_params = {
         'schema': 'public',
     }
 
-openslex_file_path = 'data/sample.slexmm'
+openslex_file_path = 'data/output/sample.slexmm'
 
 
 def test_ds2():
@@ -67,4 +67,4 @@ def test_custom_metadata_extraction():
 
 if __name__ == '__main__':
     test_ds2()
-    test_custom_metadata_extraction()
+    #test_custom_metadata_extraction()
