@@ -5,7 +5,7 @@ import json
 import os
 
 
-def test_disc(connection_params=None, dump_dir='data/dumps/', classes_for_pk=None, classes_for_fk=None):
+def test_disc(connection_params=None, dump_dir='data/output/dumps/', classes_for_pk=None, classes_for_fk=None):
 
     if connection_params is None:
         connection_params = {

@@ -2,7 +2,7 @@ sudo: required
 services:
         - docker
 before_install:
-        - cd data && sh build-image.sh && sh run-image.sh && ./check-health.sh && cd ../
+        - cd data/ds2 && sh build-image.sh && sh run-image.sh && ./check-health.sh && cd ../../
 
 language: python
 python:
