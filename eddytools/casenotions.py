@@ -48,7 +48,7 @@ def compute_candidates(mm_engine: Engine, min_rel_threshold=0) -> dict:
         # _ Compute every simple path between pairs of nodes
         # _ Compute communities
         # _ Remove duplicate paths based on set of edges
-
+        pass
 
 
     return candidates
@@ -89,6 +89,7 @@ def get_all_classes(mm_engine: Engine, metadata: MetaData = None) -> list:
         classes.append({k: r[k] for k in r.keys()})
 
     return classes
+
 
 def get_isolated_classes(mm_engine: Engine, metadata: MetaData=None) -> list:
     isolated = []
