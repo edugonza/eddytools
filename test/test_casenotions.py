@@ -1,5 +1,6 @@
 import eddytools.extraction as ex
 import eddytools.casenotions as cn
+import json
 
 openslex_file_path = 'data/mm/metamodel-sample.slexmm'
 
@@ -13,6 +14,10 @@ def test_candidates():
                            'TICKET_CONCERT', 'TICKET_SEAT', 'BOOKING_CON', 'BOOKING_FK']
 
     candidates = cn.compute_candidates(mm_engine)
+
+    json.dump(candidates, open('data/dumps/candidates.json', 'wt'))
+
+
 
     assert candidates.__len__() > 0
 
