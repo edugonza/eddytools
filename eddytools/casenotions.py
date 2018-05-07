@@ -2,10 +2,11 @@ from sqlalchemy.engine import Engine, ResultProxy
 from sqlalchemy.schema import Table, MetaData
 from sqlalchemy.sql.expression import select, text, and_, table, func, distinct
 import networkx as nx
+from networkx import MultiDiGraph
 
 
-def compute_candidates(mm_engine: Engine, min_rel_threshold=0) -> dict:
-    candidates = {}
+def compute_candidates(mm_engine: Engine, min_rel_threshold=0) -> list:
+    candidates = list()
 
     metadata = MetaData(bind=mm_engine)
     metadata.reflect()
@@ -33,7 +34,9 @@ def compute_candidates(mm_engine: Engine, min_rel_threshold=0) -> dict:
 
     for rs in relationships:
         if rs['rs'] not in rs_to_ignore:
-            g.add_edge(rs['source'], rs['target'], key=rs['rs'])
+            g.add_edge(rs['source'], rs['target'], key=rs['rs'], name=rs['rs'])
+
+    g.add_edge('BOOKING', 'CUSTOMER', key='TEST_LINK', name='TEST_LINK')
 
     #import matplotlib.pyplot as plt
     #plt.subplot(121)
@@ -41,15 +44,56 @@ def compute_candidates(mm_engine: Engine, min_rel_threshold=0) -> dict:
 
     # Compute case notions
     # Decompose graph in subgraphs, for each subgraph:
-
     conn_comp = nx.weakly_connected_component_subgraphs(g)
 
+    candidates_aux = list()
+
+    comp: MultiDiGraph
     for comp in conn_comp:
         # _ Compute every simple path between pairs of nodes
-        # _ Compute communities
-        # _ Remove duplicate paths based on set of edges
-        pass
+        for na in comp.nodes:
+            for nb in comp.nodes:
+                ps = nx.all_simple_paths(comp, na, nb)
+                for p in ps:
+                    pairs = nx.utils.pairwise(p)
+                    cand = dict()
+                    cand['nodes'] = p
+                    cand['edges'] = []
+                    cands = [cand]
+                    for pair in pairs:
+                        edges = comp.get_edge_data(pair[0], pair[1])
+                        if edges.__len__() > 1:
+                            extra_cands = list()
+                            for e in edges.values():
+                                cands_aux = []
+                                for c in cands:
+                                    cand_aux = {'nodes': c['nodes'].copy(),
+                                                'edges': c['edges'].copy(),
+                                                }
+                                    cands_aux.append(cand_aux)
+                                for c in cands_aux:
+                                    c['edges'].append(e['name'])
+                                extra_cands.extend(cands_aux)
+                            cands = extra_cands
+                        else:
+                            for c in cands:
+                                for e in edges.values():
+                                    c['edges'].append(e['name'])
+                    candidates_aux.extend(cands)
 
+        # Add single classes
+        for n in g.nodes:
+            candidates_aux.append({'nodes': n, 'edges': []})
+
+        # _ Remove duplicate paths based on set of edges and nodes
+        for c in candidates_aux:
+            unique = True
+            for c_a in candidates:
+                if c_a['nodes'] == c['nodes'] and c_a['edges'] == c['edges']:
+                    unique = False
+                    break
+            if unique:
+                candidates.append(c)
 
     return candidates
 
@@ -130,5 +174,28 @@ def get_stats_per_relationship(mm_engine: Engine, metadata: MetaData=None) -> di
     for r in res:
         rel = {k: r[k] for k in r.keys()}
         stats[r['rs']] = rel
+
+    return stats
+
+
+def get_stats_mm(mm_engine: Engine, metadata: MetaData=None) -> dict:
+    stats = {}
+    if not metadata:
+        metadata = MetaData(bind=mm_engine)
+        metadata.reflect()
+
+    # SELECT  CL.name as class,
+    #         count(distinct OBJ.id) as o,
+    #         count(distinct EV.id) as e,
+    #         count(distinct AI.activity_id) as act
+    # FROM
+    #         class as CL
+    # LEFT OUTER JOIN object as OBJ ON CL.id = OBJ.class_id
+    # LEFT OUTER JOIN object_version as OV ON OBJ.id = OV.object_id
+    # LEFT OUTER JOIN event_to_object_version as ETOV ON OV.id = ETOV.object_version_id
+    # LEFT OUTER JOIN event as EV ON ETOV.event_id = EV.id
+    # LEFT OUTER JOIN activity_instance as AI ON AI.id = EV.activity_instance_id
+    #
+    # GROUP BY CL.name
 
     return stats
