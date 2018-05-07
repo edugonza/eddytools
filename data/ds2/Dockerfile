@@ -3,8 +3,8 @@ FROM postgres:9
 # in the docker initialization, we do not build the data
 ENV BUILD_DATA 0
 
-RUN apt-get update
-RUN apt-get install -y vim git
+# RUN apt-get update
+# RUN apt-get install -y vim git
 
 #RUN adduser newuser
 
