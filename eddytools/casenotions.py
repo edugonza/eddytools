@@ -198,4 +198,33 @@ def get_stats_mm(mm_engine: Engine, metadata: MetaData=None) -> dict:
     #
     # GROUP BY CL.name
 
+    tb_class: Table = metadata.tables['class']
+    tb_object: Table = metadata.tables['object']
+    tb_version: Table = metadata.tables['object_version']
+    tb_etov: Table = metadata.tables['event_to_object_version']
+    tb_event: Table = metadata.tables['event']
+    tb_ai: Table = metadata.tables['activity_instance']
+    query = select([tb_class.columns['name'].label('class'),
+                    func.count(distinct(tb_object.columns['id'])).label('o'),
+                    func.count(distinct(tb_event.columns['id'])).label('e'),
+                    func.count(distinct(tb_ai.columns['activity_id'])).label('act')]).\
+        select_from(tb_class.join(tb_object,
+                                  tb_object.columns['class_id'] == tb_class.columns['id'],
+                                  isouter=True).
+                    join(tb_version, tb_version.columns['object_id'] == tb_object.columns['id'],
+                         isouter=True).
+                    join(tb_etov, tb_etov.columns['object_version_id'] == tb_version.columns['id'],
+                         isouter=True).
+                    join(tb_event, tb_event.columns['id'] == tb_etov.columns['event_id'],
+                         isouter=True).
+                    join(tb_ai, tb_ai.columns['id'] == tb_event.columns['activity_instance_id'],
+                         isouter=True)).\
+        group_by(tb_class.columns['name'])
+
+    res: ResultProxy = mm_engine.execute(query)
+
+    for r in res:
+        row = {k: r[k] for k in r.keys()}
+        stats[r['class']] = row
+
     return stats
