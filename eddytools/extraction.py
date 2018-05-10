@@ -4,6 +4,7 @@ from pkg_resources import resource_stream
 
 # SQLAlchemy imports
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 from sqlalchemy.schema import MetaData, Table
 from sqlalchemy.ext.declarative.api import DeclarativeMeta
 from sqlalchemy.schema import UniqueConstraint, PrimaryKeyConstraint
@@ -104,6 +105,12 @@ def automap_db(db_engine, schema):
     return Base, Base.metadata
 
 
+def get_metadata(db_engine: Engine, schema=None) -> MetaData:
+    metadata = MetaData(bind=db_engine)
+    metadata.reflect(schema=schema)
+    return metadata
+
+
 # reflect the metadata of the OpenSLEX mm into a SQLAlchemy MetaData object
 def get_mm_meta(mm_engine):
     print("Obtaining MM metadata")
@@ -150,7 +157,7 @@ rel_map: mapping (class_name, relationship_name) --> relationship_id in the Open
 '''
 
 
-def insert_metadata(mm_conn, mm_meta, Base: DeclarativeMeta, db_meta: MetaData, dm_name):
+def insert_metadata(mm_conn, mm_meta: MetaData, db_meta: MetaData, dm_name):
     class_map = dict()
     attr_map = dict()
     rel_map = dict()
@@ -162,8 +169,7 @@ def insert_metadata(mm_conn, mm_meta, Base: DeclarativeMeta, db_meta: MetaData, 
         dm_values = {'name': dm_name}
         res_ins_dm = insert_values(mm_conn, dm_table, dm_values)
         dm_id = res_ins_dm.inserted_primary_key[0]
-        #db_classes = Base.classes.keys() FIXME
-        db_classes = [t.name for t in db_meta.tables.values()]
+        db_classes = [t.fullname for t in db_meta.tables.values()]
         for c in db_classes:
             class_table = mm_meta.tables.get('class')
             class_values = {'datamodel_id': dm_id, 'name': c}
@@ -171,7 +177,7 @@ def insert_metadata(mm_conn, mm_meta, Base: DeclarativeMeta, db_meta: MetaData, 
             class_id = res_ins_class.inserted_primary_key[0]
             class_map[c] = class_id
 
-            attrs = db_meta.tables.get('{schema}.{c}'.format(schema=db_meta.schema, c=c)).c
+            attrs = db_meta.tables.get(c).c
             for attr in attrs:
                 if get_data_type(attr):
                     attr_table = mm_meta.tables.get('attribute_name')
@@ -181,11 +187,11 @@ def insert_metadata(mm_conn, mm_meta, Base: DeclarativeMeta, db_meta: MetaData, 
                     attr_map[(c, attr.name)] = attr_id
 
         for c in db_classes:
-            fkcs = db_meta.tables.get('{schema}.{c}'.format(schema=db_meta.schema, c=c)).foreign_key_constraints
+            fkcs = db_meta.tables.get(c).foreign_key_constraints
             for fkc in fkcs:
                 rel_table = mm_meta.tables.get('relationship')
                 rel_values = {'source': class_map[c],
-                              'target': class_map[fkc.referred_table.name],
+                              'target': class_map[fkc.referred_table.fullname],
                               'name': fkc.name}
                 res_ins_rel = insert_values(mm_conn, rel_table, rel_values)
                 rel_id = res_ins_rel.inserted_primary_key[0]
@@ -256,7 +262,7 @@ def insert_class_objects(mm_conn, mm_meta, db_conn, db_meta, class_name, class_m
     t1 = time.time()
     trans = mm_conn.begin()
     try:
-        source_table = db_meta.tables.get('{s}.{c}'.format(s=db_meta.schema, c=class_name))
+        source_table = db_meta.tables.get(class_name)
         objs = db_conn.execute(source_table.select())
         for obj in objs:
             insert_object(mm_conn, obj, source_table, class_name, class_map, attr_map, rel_map, obj_v_map, mm_meta)
@@ -316,7 +322,7 @@ def insert_class_relations(mm_conn, mm_meta, db_conn, db_meta, class_name, rel_m
     t1 = time.time()
     trans = mm_conn.begin()
     try:
-        source_table = db_meta.tables.get('{s}.{c}'.format(s=db_meta.schema, c=class_name))
+        source_table = db_meta.tables.get(class_name)
         objs = db_conn.execute(source_table.select())
         for obj in objs:
             insert_object_relations(mm_conn, mm_meta, obj, source_table, class_name, rel_map, obj_v_map)
@@ -365,7 +371,7 @@ def extract_to_mm(openslex_file_path, dialect, username, password, host, port, d
     mm_conn = mm_engine.connect()
     print('connection opened')
     try:
-        class_map, attr_map, rel_map = insert_metadata(mm_conn, mm_meta, Base, db_meta, dm_name)
+        class_map, attr_map, rel_map = insert_metadata(mm_conn, mm_meta, db_meta, dm_name)
     except Exception as e:
         print('Exception: {e}'.format(e=e))
         raise e
@@ -382,8 +388,7 @@ def extract_to_mm(openslex_file_path, dialect, username, password, host, port, d
     print('connections opened')
     try:
         if classes is None:
-            #classes = Base.classes.keys() # use this if you want to insert objects of all classes FIXME
-            classes = [t.name for t in db_meta.tables.values()]
+            classes = [t.fullname for t in db_meta.tables.values()]
         obj_v_map = insert_objects(mm_conn, mm_meta, db_conn, db_meta, classes, class_map, attr_map, rel_map)
     except Exception as e:
         print('Exception: {e}'.format(e=e))

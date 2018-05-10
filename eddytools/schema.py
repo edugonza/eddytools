@@ -10,26 +10,20 @@ import jellyfish
 import numpy as np
 
 
-def retrieve_classes(db_engine: Engine, schema) -> list:
-    base: DeclarativeMeta
-    base_metadata: MetaData
-    base, base_metadata = ex.automap_db(db_engine, schema)
-    classes = [c for c in base_metadata.tables.keys()]
+def retrieve_classes(metadata) -> list:
+    classes = [c for c in metadata.tables.keys()]
     return classes
 
 
-def retrieve_pks(db_engine: Engine, schema, classes=None) -> dict:
-    base: DeclarativeMeta
-    base_metadata: MetaData
-    base, base_metadata = ex.automap_db(db_engine, schema)
+def retrieve_pks(metadata: MetaData, classes=None) -> dict:
     # Get existing PKs and UKs in schema
 
     pks = {}
 
     if classes is None:
-        classes = base_metadata.tables.keys()
+        classes = metadata.tables.keys()
     for c in tqdm(classes):
-        t: Table = base_metadata.tables.get(c)
+        t: Table = metadata.tables.get(c)
         pks[t.fullname] = []
         for cons in t.constraints:
             if isinstance(cons, (UniqueConstraint, PrimaryKeyConstraint)) and cons.columns.__len__() > 0:
@@ -45,11 +39,7 @@ def retrieve_pks(db_engine: Engine, schema, classes=None) -> dict:
     return pks
 
 
-def discover_pks(db_engine: Engine, schema, classes=None):
-    base: DeclarativeMeta
-    base_metadata: MetaData
-    base, base_metadata = ex.automap_db(db_engine, schema)
-
+def discover_pks(db_engine: Engine, metadata: MetaData, classes=None):
     candidates = {}
     # For each class in classes:
     # Select candidate attributes sets
@@ -57,9 +47,9 @@ def discover_pks(db_engine: Engine, schema, classes=None):
 
     # Return smallest sets of attributes with unique values
     if classes is None:
-        classes = base_metadata.tables.keys()
+        classes = metadata.tables.keys()
     for c in tqdm(classes, desc='Discovering PKs'):
-        t: Table = base_metadata.tables.get(c)
+        t: Table = metadata.tables.get(c)
         candidates_t = []
         for n in range(t.columns.__len__()):
             if candidates_t.__len__() > 0:
@@ -123,7 +113,7 @@ def filter_discovered_fks(discovered_fks: dict, sim_threshold=0.5, topk=3):
 def check_uniqueness(db_engine: Engine, table: Table, comb):
     if comb.__len__() == 0:
         return False
-    fields = [text(c.name) for c in comb]
+    fields = [c for c in comb]
     query = select(fields).select_from(table)
     res: ResultProxy = db_engine.execute(query)
     values = []
@@ -136,18 +126,15 @@ def check_uniqueness(db_engine: Engine, table: Table, comb):
     return total_len == unique_len
 
 
-def retrieve_fks(db_engine: Engine, schema, classes=None) -> dict:
-    base: DeclarativeMeta
-    base_metadata: MetaData
-    base, base_metadata = ex.automap_db(db_engine, schema)
+def retrieve_fks(metadata: MetaData, classes=None) -> dict:
     # Get existing FKs in schema
 
     fks = {}
 
     if classes is None:
-        classes = base_metadata.tables.keys()
+        classes = metadata.tables.keys()
     for c in tqdm(classes, desc='Retrieving FKs'):
-        t: Table = base_metadata.tables.get(c)
+        t: Table = metadata.tables.get(c)
         fks[t.fullname] = []
         k: ForeignKeyConstraint
         for k in t.foreign_key_constraints:
@@ -167,11 +154,7 @@ def retrieve_fks(db_engine: Engine, schema, classes=None) -> dict:
     return fks
 
 
-def discover_fks(db_engine: Engine, schema, pk_candidates, classes=None, max_fields_fk=4):
-    base: DeclarativeMeta
-    base_metadata: MetaData
-    base, base_metadata = ex.automap_db(db_engine, schema)
-
+def discover_fks(db_engine: Engine, metadata: MetaData, pk_candidates, classes=None, max_fields_fk=4):
     candidates = {}
     inclusion_cache = {}
 
@@ -180,15 +163,15 @@ def discover_fks(db_engine: Engine, schema, pk_candidates, classes=None, max_fie
     # Explore pairs of PKs-FKs and check inclusion
     # Return valid pairs
     if classes is None:
-        classes = base_metadata.tables.keys()
+        classes = metadata.tables.keys()
     for c in tqdm(classes, desc='Discovering FKs'):
-        t: Table = base_metadata.tables.get(c)
+        t: Table = metadata.tables.get(c)
         candidates_t = []
         for n in tqdm(range(1, min(t.columns.__len__(), max_fields_fk)+1), desc='Exploring candidates of length'):
             combinations = itertools.combinations(t.columns, n)
             for idx_comb, comb in tqdm(enumerate(combinations), desc='Checking combinations'):
                 for idx_pkcand, candidate_pk_ref in enumerate(get_candidate_pks_ref(pk_candidates, [str(col.type) for col in comb])):
-                    for idx_mapping, mapping in enumerate(check_inclusion(db_engine, t, comb, candidate_pk_ref, inclusion_cache)):
+                    for idx_mapping, mapping in enumerate(check_inclusion(db_engine, metadata, t, comb, candidate_pk_ref, inclusion_cache)):
                         cand_fk = {
                             'table': t.name,
                             'schema': t.schema,
@@ -206,7 +189,7 @@ def discover_fks(db_engine: Engine, schema, pk_candidates, classes=None, max_fie
     return candidates
 
 
-def check_inclusion(db_engine: Engine, table: Table, comb, candidate_pk, inclusion_cache={}):
+def check_inclusion(db_engine: Engine, metadata: MetaData, table: Table, comb, candidate_pk, inclusion_cache={}):
     if comb.__len__() == 0:
         return False
     field_names_fk = [c.name for c in comb]
@@ -234,8 +217,8 @@ def check_inclusion(db_engine: Engine, table: Table, comb, candidate_pk, inclusi
             elif ft_fk == ft_pk:
                 included = False
                 if fn_pk not in inclusion_map[fn_fk]:
-                    values_fk = get_values_fields(db_engine, table.fullname, [fn_fk])
-                    values_pk = get_values_fields(db_engine, candidate_pk['fullname'], [fn_pk])
+                    values_fk = get_values_fields(db_engine, metadata, table.fullname, [fn_fk])
+                    values_pk = get_values_fields(db_engine, metadata, candidate_pk['fullname'], [fn_pk])
                     if set(values_fk).issubset(set(values_pk)):
                         included = True
                     else:
@@ -250,9 +233,9 @@ def check_inclusion(db_engine: Engine, table: Table, comb, candidate_pk, inclusi
 
     valid_mappings = []
 
-    values_fk = get_values_fields(db_engine, table.fullname, field_names_fk)
+    values_fk = get_values_fields(db_engine, metadata, table.fullname, field_names_fk)
     for m in possible_mappings:
-        values_pk = get_values_fields(db_engine, candidate_pk['fullname'], m)
+        values_pk = get_values_fields(db_engine, metadata, candidate_pk['fullname'], m)
         if set(values_fk).issubset(set(values_pk)):
             valid_mappings.append(m)
 
@@ -271,8 +254,9 @@ def generate_mappings(field_names_fk, inclusion_map, mapping):
     return mappings
 
 
-def get_values_fields(db_engine: Engine, table: str, fields: list):
-    query = select([text(f) for f in fields]).select_from(text(table))
+def get_values_fields(db_engine: Engine, metadata: MetaData, table: str, fields: list):
+    tb = metadata.tables.get(table)
+    query = select([tb.columns.get(f) for f in fields]).select_from(tb)
     res: ResultProxy = db_engine.execute(query)
     values = []
     for r in res:
@@ -291,6 +275,7 @@ def get_candidate_pks_ref(pks: dict, types: list):
 
 def compute_pk_stats(all_classes, pks: dict, discovered_pks: dict):
     stats = {}
+    scores = {}
     for c in all_classes:
         true_pks_c = pks.get(c) if pks.get(c) else []
         disc_pks_c = discovered_pks.get(c) if discovered_pks.get(c) else []
@@ -312,6 +297,7 @@ def compute_pk_stats(all_classes, pks: dict, discovered_pks: dict):
 
 def compute_fk_stats(all_classes, fks: dict, discovered_fks: dict):
     stats = {}
+    scores = {}
     for c in all_classes:
         true_fks_c = fks.get(c) if fks.get(c) else []
         disc_fks_c = discovered_fks.get(c) if discovered_fks.get(c) else []
@@ -347,21 +333,20 @@ def recall(tp: int, p: int):
         return 1
 
 
-def create_custom_metadata(connection_params: dict, db_engine: Engine, schema: str, pks: dict, fks: dict):
-    base: DeclarativeMeta
-    base_metadata: MetaData
-    base, base_metadata = ex.automap_db(db_engine, schema)
+def create_custom_metadata(db_engine: Engine, schema: str, pks: dict, fks: dict):
+    metadata = MetaData(bind=db_engine)
+    metadata.reflect(schema=schema)
 
     # Discard any existing pk, uk or fk
     t: Table
-    for t in base_metadata.tables.values():
+    for t in metadata.tables.values():
         t.constraints.clear()
         t.primary_key = None
         t.foreign_keys.clear()
 
     # Add custom pk, uk, and fk
     for c in pks:
-        t: Table = base_metadata.tables.get(c)
+        t: Table = metadata.tables.get(c)
         for idx, k in enumerate(pks[c]):
             if idx == 0:
                 uk = PrimaryKeyConstraint(*k['pk_columns'])
@@ -370,7 +355,7 @@ def create_custom_metadata(connection_params: dict, db_engine: Engine, schema: s
             t.append_constraint(uk)
 
     for c in fks:
-        t: Table = base_metadata.tables.get(c)
+        t: Table = metadata.tables.get(c)
         for k in fks[c]:
             refcolumns = ['{}.{}'.format(k['fk_ref_table_fullname'], col) for col in k['fk_ref_columns']]
             fk = ForeignKeyConstraint(columns=k['fk_columns'],
@@ -378,4 +363,4 @@ def create_custom_metadata(connection_params: dict, db_engine: Engine, schema: s
                                       name=k['fk_name'])
             t.append_constraint(fk)
 
-    return base_metadata
+    return metadata

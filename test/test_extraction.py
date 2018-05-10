@@ -32,7 +32,7 @@ def check_mm(openslex_file_path, connection_params):
     mm_engine = ex.create_mm_engine(openslex_file_path)
     mm_conn = mm_engine.connect()
     mm_q = sq.select('*').select_from(text('object as O, class as CL')) \
-        .where(text('O.class_id == CL.id AND CL.name == "customers"'))
+        .where(text('O.class_id == CL.id AND CL.name == "public.customers"'))
     mm_res = mm_conn.execute(mm_q).fetchall()
     mm_conn.close()
     mm_engine.dispose()
@@ -53,11 +53,11 @@ def check_mm(openslex_file_path, connection_params):
 def test_custom_metadata_extraction():
     db_engine = ex.create_db_engine(**connection_params)
     schema = connection_params['schema']
-    discovered_pks = es.discover_pks(db_engine, schema=schema)
-    discovered_fks = es.discover_fks(db_engine, schema=schema,
+    metadata = ex.get_metadata(db_engine, schema)
+    discovered_pks = es.discover_pks(db_engine, metadata)
+    discovered_fks = es.discover_fks(db_engine, metadata,
                                      pk_candidates=discovered_pks)
-    db_meta = es.create_custom_metadata(connection_params, db_engine,
-                                        connection_params['schema'],
+    db_meta = es.create_custom_metadata(db_engine, schema,
                                         discovered_pks, discovered_fks)
 
     db_engine.dispose()
@@ -67,4 +67,4 @@ def test_custom_metadata_extraction():
 
 if __name__ == '__main__':
     test_ds2()
-    #test_custom_metadata_extraction()
+    test_custom_metadata_extraction()
