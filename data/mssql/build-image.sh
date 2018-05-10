@@ -17,6 +17,8 @@ echo "3 - Creating backup dir"
 
 docker exec -it sql1 mkdir /var/opt/mssql/backup
 
+cat wwi-pieces/* > wwi.bak
+
 if ! md5sum -c wwi.md5
 then
 	echo "3.1 - Downloading backup"
