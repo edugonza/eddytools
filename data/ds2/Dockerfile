@@ -1,4 +1,4 @@
-FROM postgres:9
+FROM postgres:9.5
 
 # in the docker initialization, we do not build the data
 ENV BUILD_DATA 0
@@ -16,6 +16,6 @@ RUN chown postgres /data
 # copy the data
 COPY ds21/* /data/
 
-ADD setup.sh /docker-entrypoint-initdb.d/
+ADD setup.sh /
 
 HEALTHCHECK CMD pg_isready -U postgres
