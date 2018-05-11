@@ -3,11 +3,24 @@ from sqlalchemy.engine import Connection, Engine, ResultProxy, RowProxy
 from sqlalchemy.schema import MetaData, Table, Column, ForeignKeyConstraint, UniqueConstraint, PrimaryKeyConstraint
 from sqlalchemy.ext.declarative.api import DeclarativeMeta
 from sqlalchemy.sql.expression import select, and_, or_, text
+from sqlalchemy.types import _Binary
 import itertools
 from collections import Counter
 from tqdm import tqdm
 import jellyfish
 import numpy as np
+
+
+def retrieve_tables_definition(metadata: MetaData) -> dict:
+    data = {}
+    c: Table
+    for c in metadata.tables.values():
+        data_c = {'name': c.name,
+                  'fullname': c.fullname,
+                  'schema': c.schema,
+                  'columns': [{'name': col.name, 'type': str(col.type), 'binary': isinstance(col.type, _Binary)} for col in c.columns]}
+        data[c.fullname] = data_c
+    return data
 
 
 def retrieve_classes(metadata) -> list:

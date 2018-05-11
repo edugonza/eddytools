@@ -25,6 +25,10 @@ def test_disc(connection_params=None, dump_dir='data/output/dumps/', classes_for
 
         db_engine = ex.create_db_engine(**connection_params)
         metadata = ex.get_metadata(db_engine, schema=schema)
+
+        tables_def = es.retrieve_tables_definition(metadata)
+        json.dump(tables_def, open('{}/{}'.format(dump_dir, 'tables_def.json'), mode='wt'), indent=True)
+
         retrieved_pks = es.retrieve_pks(metadata)
         json.dump(retrieved_pks, open('{}/{}'.format(dump_dir, 'retrieved_pks.json'), mode='wt'), indent=True)
 
