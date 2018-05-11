@@ -12,7 +12,8 @@ import jellyfish
 import numpy as np
 
 
-def get_python_type(col: Column, default):
+def get_python_type(col: Column):
+    default = '-'
     try:
         return col.type.python_type
     except:
@@ -27,7 +28,7 @@ def retrieve_tables_definition(metadata: MetaData) -> dict:
                   'fullname': c.fullname,
                   'schema': c.schema,
                   'columns': [{'name': col.name, 'type': str(col.type),
-                               'type_python': str(get_python_type(col, '-')),
+                               'type_python': str(get_python_type(col)),
                                'binary': isinstance(col.type, _Binary)}
                               for col in c.columns]}
         data[c.fullname] = data_c
@@ -65,7 +66,7 @@ def retrieve_pks(metadata: MetaData, classes=None) -> dict:
                     'fullname': t.fullname,
                     'pk_columns': [col.name for col in cons.columns],
                     'pk_name': cons.name,
-                    'pk_columns_type': [str(col.type.python_type) for col in cons.columns],
+                    'pk_columns_type': [str(get_python_type(col)) for col in cons.columns],
                 }
                 pks[t.fullname].append(pk)
     return pks
@@ -95,7 +96,7 @@ def discover_pks(db_engine: Engine, metadata: MetaData, classes=None):
                         'fullname': t.fullname,
                         'pk_name': "{}_{}_{}_pk".format(t.name, n, idx),
                         'pk_columns': [c.name for c in comb],
-                        'pk_columns_type': [str(c.type.python_type) for c in comb],
+                        'pk_columns_type': [str(get_python_type(c)) for c in comb],
                     }
                     candidates_t.append(cand)
         candidates[c] = candidates_t
@@ -180,7 +181,7 @@ def retrieve_fks(metadata: MetaData, classes=None) -> dict:
                 'fk_ref_table_fullname': k.referred_table.fullname,
                 'fk_ref_columns': [fkcol.column.name for fkcol in k.elements],
                 'fk_name': k.name,
-                'fk_columns_type': [str(fkcol.parent.type.python_type) for fkcol in k.elements]
+                'fk_columns_type': [str(get_python_type(fkcol)) for fkcol in k.elements]
             }
             fks[t.fullname].append(fk)
     return fks
@@ -202,7 +203,7 @@ def discover_fks(db_engine: Engine, metadata: MetaData, pk_candidates, classes=N
         for n in tqdm(range(1, min(t.columns.__len__(), max_fields_fk)+1), desc='Exploring candidates of length'):
             combinations = itertools.combinations(t.columns, n)
             for idx_comb, comb in tqdm(enumerate(combinations), desc='Checking combinations'):
-                for idx_pkcand, candidate_pk_ref in enumerate(get_candidate_pks_ref(pk_candidates, [str(col.type.python_type) for col in comb])):
+                for idx_pkcand, candidate_pk_ref in enumerate(get_candidate_pks_ref(pk_candidates, [str(get_python_type(col)) for col in comb])):
                     for idx_mapping, mapping in enumerate(check_inclusion(db_engine, metadata, t, comb, candidate_pk_ref, inclusion_cache)):
                         cand_fk = {
                             'table': t.name,
@@ -213,7 +214,7 @@ def discover_fks(db_engine: Engine, metadata: MetaData, pk_candidates, classes=N
                             'fk_ref_table': candidate_pk_ref['table'],
                             'fk_ref_table_fullname': candidate_pk_ref['fullname'],
                             'fk_columns': [c.name for c in comb],
-                            'fk_columns_type': [str(c.type.python_type) for c in comb],
+                            'fk_columns_type': [str(get_python_type(c)) for c in comb],
                             'fk_ref_columns': mapping,
                         }
                         candidates_t.append(cand_fk)
@@ -225,7 +226,7 @@ def check_inclusion(db_engine: Engine, metadata: MetaData, table: Table, comb, c
     if comb.__len__() == 0:
         return False
     field_names_fk = [c.name for c in comb]
-    field_types_fk = [str(c.type.python_type) for c in comb]
+    field_types_fk = [str(get_python_type(c)) for c in comb]
     field_names_pk = candidate_pk['pk_columns']
     field_types_pk = candidate_pk['pk_columns_type']
 
