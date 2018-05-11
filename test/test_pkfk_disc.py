@@ -90,7 +90,7 @@ def test_disc_mssql():
 
     db_engine = ex.create_db_engine_mssql(**connection_params)
 
-    return test_disc(connection_params, db_engine=db_engine, dump_dir=' data/output/adw/dumps/')
+    return test_disc(connection_params, db_engine=db_engine, dump_dir='data/output/adw/dumps/')
 
 
 if __name__ == '__main__':
