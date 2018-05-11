@@ -95,7 +95,7 @@ def create_db_engine(dialect, username, password, host, port, database, **params
     return engine
 
 
-def _mssql_connect(username=None, password=None, host=None, port=None, database=None, trusted_conn=False):
+def _mssql_connect(username=None, password=None, host=None, port=None, database=None, trusted_conn=False, **params):
     # Some other example server values are
     # server = 'localhost\sqlexpress' # for a named instance
     # server = 'myserver,port' # to specify an alternate port
@@ -108,7 +108,7 @@ def _mssql_connect(username=None, password=None, host=None, port=None, database=
     else:
         auth = ';UID=' + username + ';PWD=' + password
     db = ';DATABASE=' + database
-    db_url = 'DRIVER={ODBC Driver 17 for SQL Server};' + auth + db + auth
+    db_url = 'DRIVER={ODBC Driver 17 for SQL Server};' + server + auth + db + auth
     cnxn = pyodbc.connect(db_url)
     return cnxn
 
