@@ -24,5 +24,5 @@ sudo ACCEPT_EULA=Y apt-get install mssql-tools
 echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bash_profile
 echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bashrc
 source ~/.bashrc
-# optional: for unixODBC development headers
-#sudo apt-get install unixodbc-dev
+# optional: for unixODBC development headers, required for pyodbc
+sudo apt-get install unixodbc-dev
