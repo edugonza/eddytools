@@ -10,6 +10,10 @@ from sqlalchemy.ext.declarative.api import DeclarativeMeta
 from sqlalchemy.schema import UniqueConstraint, PrimaryKeyConstraint
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy import types
+try:
+    import pyodbc
+except:
+    pass
 
 
 # OpenSLEX parameters
@@ -87,6 +91,32 @@ def create_db_engine(dialect, username, password, host, port, database, **params
         database=database
     )
     engine = create_engine(db_url)
+    print("DB engine created")
+    return engine
+
+
+def _mssql_connect(username=None, password=None, host=None, port=None, database=None, trusted_conn=False):
+    # Some other example server values are
+    # server = 'localhost\sqlexpress' # for a named instance
+    # server = 'myserver,port' # to specify an alternate port
+    if not port:
+        server = 'SERVER=' + host
+    else:
+        server = 'SERVER=' + host + ',' + port
+    if trusted_conn:
+        auth = ';Trusted_Connection=yes'
+    else:
+        auth = ';UID=' + username + ';PWD=' + password
+    db = ';DATABASE=' + database
+    db_url = 'DRIVER={ODBC Driver 17 for SQL Server};' + auth + db + auth
+    cnxn = pyodbc.connect(db_url)
+    return cnxn
+
+
+# create engine for the source database using SQLAlchemy
+def create_db_engine_mssql(**params):
+    print("Creating DB engine for mssql")
+    engine = create_engine('mssql+pyodbc://', creator=lambda: _mssql_connect(**params))
     print("DB engine created")
     return engine
 

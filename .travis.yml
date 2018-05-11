@@ -5,6 +5,8 @@ addons:
 services:
         - docker
 before_install:
+        - cd data/mssql && sh install-drivers.sh && cd ../../
+        - cd data/adw && sh build-image.sh && sh restore-db.sh && cd ../../
         - cd data/ds2 && sh build-image.sh && sh run-image.sh && ./check-health.sh && cd ../../
 
 language: python

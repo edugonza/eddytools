@@ -5,7 +5,7 @@ import json
 import os
 
 
-def test_disc(connection_params=None, dump_dir='data/output/dumps/', classes_for_pk=None, classes_for_fk=None):
+def test_disc(connection_params=None, db_engine=None, dump_dir='data/output/dumps/', classes_for_pk=None, classes_for_fk=None):
 
     if connection_params is None:
         connection_params = {
@@ -18,12 +18,13 @@ def test_disc(connection_params=None, dump_dir='data/output/dumps/', classes_for
             'schema': 'public',
         }
 
-    schema = connection_params['schema']
+    schema = connection_params.get('schema', None)
     try:
 
         os.makedirs(dump_dir, exist_ok=True)
 
-        db_engine = ex.create_db_engine(**connection_params)
+        if not db_engine:
+            db_engine = ex.create_db_engine(**connection_params)
         metadata = ex.get_metadata(db_engine, schema=schema)
 
         tables_def = es.retrieve_tables_definition(metadata)
@@ -76,5 +77,20 @@ def test_disc(connection_params=None, dump_dir='data/output/dumps/', classes_for
         raise e
 
 
+def test_disc_mssql():
+
+    connection_params = {
+        'username': 'SA',
+        'password': 'msSQL2017!',
+        'host': 'localhost',
+        'port': '1402',
+        'database': 'AdventureWorks2017',
+    }
+
+    db_engine = ex.create_db_engine_mssql(**connection_params)
+
+    return test_disc(connection_params, db_engine=db_engine, dump_dir=' data/output/adw/dumps/')
+
+
 if __name__ == '__main__':
-    test_disc()
+    test_disc_mssql()
