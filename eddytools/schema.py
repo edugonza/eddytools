@@ -4,6 +4,7 @@ from sqlalchemy.schema import MetaData, Table, Column, ForeignKeyConstraint, Uni
 from sqlalchemy.ext.declarative.api import DeclarativeMeta
 from sqlalchemy.sql.expression import select, and_, or_, text
 from sqlalchemy.types import _Binary
+from sqlalchemy.sql.base import ImmutableColumnCollection
 import itertools
 from collections import Counter
 from tqdm import tqdm
@@ -21,6 +22,14 @@ def retrieve_tables_definition(metadata: MetaData) -> dict:
                   'columns': [{'name': col.name, 'type': str(col.type), 'binary': isinstance(col.type, _Binary)} for col in c.columns]}
         data[c.fullname] = data_c
     return data
+
+
+def filter_binary_columns(metadata: MetaData):
+    c: Table
+    for c in metadata.tables.values():
+        cols_to_remove = [col for col in c.columns if isinstance(col.type, _Binary)]
+        for col in cols_to_remove:
+            c.columns._data.pop(col.name)
 
 
 def retrieve_classes(metadata) -> list:
