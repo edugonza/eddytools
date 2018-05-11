@@ -108,7 +108,7 @@ def _mssql_connect(username=None, password=None, host=None, port=None, database=
     else:
         auth = ';UID=' + username + ';PWD=' + password
     db = ';DATABASE=' + database
-    db_url = 'DRIVER={ODBC Driver 17 for SQL Server};' + server + auth + db + auth
+    db_url = 'DRIVER={ODBC Driver 17 for SQL Server};' + server + auth + db
     cnxn = pyodbc.connect(db_url)
     return cnxn
 

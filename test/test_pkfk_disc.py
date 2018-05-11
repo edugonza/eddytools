@@ -85,6 +85,7 @@ def test_disc_mssql():
         'host': 'localhost',
         'port': '1402',
         'database': 'AdventureWorks2017',
+        'trusted_conn': False,
     }
 
     db_engine = ex.create_db_engine_mssql(**connection_params)
