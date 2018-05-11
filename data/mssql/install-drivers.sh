@@ -7,7 +7,7 @@ DISTRIBUTION=`lsb_release -is`
 
 if ! [ "$DISTRIBUTION" == "Ubuntu" ]
 then
-	echo "This script only suports Ubuntu."
+	echo "Your distro is: ${DISTRIBUTION}. This script only suports Ubuntu."
 	echo "To obtain installation instruction for other platforms, go to https://docs.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-2017"
 	exit 1
 fi
