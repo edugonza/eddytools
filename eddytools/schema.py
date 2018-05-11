@@ -12,6 +12,13 @@ import jellyfish
 import numpy as np
 
 
+def get_python_type(col: Column, default):
+    try:
+        return col.type.python_type
+    except:
+        return default
+
+
 def retrieve_tables_definition(metadata: MetaData) -> dict:
     data = {}
     c: Table
@@ -20,7 +27,7 @@ def retrieve_tables_definition(metadata: MetaData) -> dict:
                   'fullname': c.fullname,
                   'schema': c.schema,
                   'columns': [{'name': col.name, 'type': str(col.type),
-                               'type_python': str(col.type.python_type),
+                               'type_python': str(get_python_type(col, '-')),
                                'binary': isinstance(col.type, _Binary)}
                               for col in c.columns]}
         data[c.fullname] = data_c
