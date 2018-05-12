@@ -18,7 +18,7 @@ setup(
     tests_require=['pytest'],
     install_requires=['sqlalchemy', 'psycopg2', 'setuptools',
                       'jellyfish', 'tqdm', 'numpy', 'networkx',
-                      'pyodbc'],
+                      'pymssql'],
     python_requires='>=3.6',
     packages=['eddytools'],
     package_data={'eddytools': ['resources']},

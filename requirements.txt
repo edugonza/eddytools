@@ -5,4 +5,4 @@ jellyfish
 tqdm
 numpy
 networkx
-pyodbc
+pymssql

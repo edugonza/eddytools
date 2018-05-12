@@ -10,10 +10,12 @@ from sqlalchemy.ext.declarative.api import DeclarativeMeta
 from sqlalchemy.schema import UniqueConstraint, PrimaryKeyConstraint
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy import types
-try:
-    import pyodbc
-except:
-    pass
+from sqlalchemy import inspect
+import pymssql
+# try:
+#     import pyodbc
+# except:
+#     pass
 
 
 # OpenSLEX parameters
@@ -99,24 +101,21 @@ def _mssql_connect(username=None, password=None, host=None, port=None, database=
     # Some other example server values are
     # server = 'localhost\sqlexpress' # for a named instance
     # server = 'myserver,port' # to specify an alternate port
-    if not port:
-        server = 'SERVER=' + host
-    else:
-        server = 'SERVER=' + host + ',' + port
-    if trusted_conn:
-        auth = ';Trusted_Connection=yes'
-    else:
-        auth = ';UID=' + username + ';PWD=' + password
-    db = ';DATABASE=' + database
-    db_url = 'DRIVER={ODBC Driver 17 for SQL Server};' + server + auth + db
-    cnxn = pyodbc.connect(db_url)
+    connection_params = {'server': host}
+    if port:
+        connection_params['port'] = port
+    if not trusted_conn:
+        connection_params['user'] = username
+        connection_params['password'] = password
+    connection_params['database'] = database
+    cnxn = pymssql.connect(**connection_params)
     return cnxn
 
 
 # create engine for the source database using SQLAlchemy
 def create_db_engine_mssql(**params):
     print("Creating DB engine for mssql")
-    engine = create_engine('mssql+pyodbc://', creator=lambda: _mssql_connect(**params))
+    engine = create_engine('mssql+pymssql://', creator=lambda: _mssql_connect(**params))
     print("DB engine created")
     return engine
 
@@ -135,9 +134,17 @@ def automap_db(db_engine, schema):
     return Base, Base.metadata
 
 
-def get_metadata(db_engine: Engine, schema=None) -> MetaData:
+def get_metadata(db_engine: Engine, schemas=None) -> MetaData:
     metadata = MetaData(bind=db_engine)
-    metadata.reflect(schema=schema)
+    metadata.tables = dict()
+    if not schemas:
+        insp = inspect(db_engine)
+        schemas = insp.get_schema_names()
+    for schema in schemas:
+        m = MetaData(bind=db_engine)
+        m.reflect(schema=schema)
+        for t in m.tables.values():
+            metadata.tables[t.fullname] = t
     return metadata
 
 

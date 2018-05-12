@@ -3,6 +3,7 @@ from eddytools import schema as es
 from pprint import pprint
 import json
 import os
+from sqlalchemy.schema import BLANK_SCHEMA
 
 
 def test_disc(connection_params=None, db_engine=None, dump_dir='data/output/dumps/', classes_for_pk=None, classes_for_fk=None):
@@ -15,17 +16,17 @@ def test_disc(connection_params=None, db_engine=None, dump_dir='data/output/dump
             'host': 'localhost',
             'port': '5556',
             'database': 'ds2',
-            'schema': 'public',
+            'schemas': ['public'],
         }
 
-    schema = connection_params.get('schema', None)
+    schemas = connection_params.get('schemas', None)
     try:
 
         os.makedirs(dump_dir, exist_ok=True)
 
         if not db_engine:
             db_engine = ex.create_db_engine(**connection_params)
-        metadata = ex.get_metadata(db_engine, schema=schema)
+        metadata = ex.get_metadata(db_engine, schemas=schemas)
 
         tables_def = es.retrieve_tables_definition(metadata)
         json.dump(tables_def, open('{}/{}'.format(dump_dir, 'tables_def.json'), mode='wt'), indent=True)
@@ -86,6 +87,7 @@ def test_disc_mssql():
         'port': '1402',
         'database': 'AdventureWorks2017',
         'trusted_conn': False,
+        'schemas': None,
     }
 
     db_engine = ex.create_db_engine_mssql(**connection_params)

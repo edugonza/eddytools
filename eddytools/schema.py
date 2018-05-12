@@ -20,17 +20,34 @@ def get_python_type(col: Column):
         return default
 
 
+def get_col_type(col: Column):
+    try:
+        return str(col.type)
+    except:
+        return None
+
+
+def is_binary_type(col: Column):
+    try:
+        return isinstance(col.type, _Binary)
+    except:
+        return False
+
+
 def retrieve_tables_definition(metadata: MetaData) -> dict:
     data = {}
     c: Table
     for c in metadata.tables.values():
+        columns_data = []
+        for col in c.columns:
+            col_d = {'name': col.name}
+            col_d['type'] = str(get_col_type(col))
+            col_d['type_python'] = str(get_python_type(col))
+            col_d['binary'] = is_binary_type(col)
         data_c = {'name': c.name,
                   'fullname': c.fullname,
                   'schema': c.schema,
-                  'columns': [{'name': col.name, 'type': str(col.type),
-                               'type_python': str(get_python_type(col)),
-                               'binary': isinstance(col.type, _Binary)}
-                              for col in c.columns]}
+                  'columns': columns_data}
         data[c.fullname] = data_c
     return data
 
