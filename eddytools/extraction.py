@@ -92,7 +92,7 @@ def create_db_engine(dialect, username, password, host, port, database, **params
         port=port,
         database=database
     )
-    engine = create_engine(db_url)
+    engine = create_engine(db_url, pool_pre_ping=True)
     print("DB engine created")
     return engine
 
@@ -115,7 +115,7 @@ def _mssql_connect(username=None, password=None, host=None, port=None, database=
 # create engine for the source database using SQLAlchemy
 def create_db_engine_mssql(**params):
     print("Creating DB engine for mssql")
-    engine = create_engine('mssql+pymssql://', creator=lambda: _mssql_connect(**params))
+    engine = create_engine('mssql+pymssql://', creator=lambda: _mssql_connect(**params), pool_pre_ping=True)
     print("DB engine created")
     return engine
 

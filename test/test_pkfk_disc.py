@@ -3,7 +3,6 @@ from eddytools import schema as es
 from pprint import pprint
 import json
 import os
-from sqlalchemy.schema import BLANK_SCHEMA
 
 
 def test_disc(connection_params=None, db_engine=None, dump_dir='data/output/dumps/', classes_for_pk=None, classes_for_fk=None):
@@ -18,6 +17,8 @@ def test_disc(connection_params=None, db_engine=None, dump_dir='data/output/dump
             'database': 'ds2',
             'schemas': ['public'],
         }
+
+    MAX_NUM_FIELDS_KEY = 4
 
     schemas = connection_params.get('schemas', None)
     try:
@@ -45,11 +46,18 @@ def test_disc(connection_params=None, db_engine=None, dump_dir='data/output/dump
         if not classes_for_pk:
             classes_for_pk = all_classes
 
-        discovered_pks = es.discover_pks(db_engine, metadata, classes_for_pk)
+        discovered_pks = es.discover_pks(db_engine, metadata, classes_for_pk, max_fields=MAX_NUM_FIELDS_KEY)
+        # discovered_pks = json.load(open('{}/{}'.format(dump_dir, 'discovered_pks.json'), mode='rt'))
         json.dump(discovered_pks, open('{}/{}'.format(dump_dir, 'discovered_pks.json'), mode='wt'), indent=True)
 
-        filtered_pks = es.filter_discovered_pks(discovered_pks, patterns=['id'])
+        filtered_pks = es.filter_discovered_pks(discovered_pks, patterns=None)
+        # filtered_pks = es.filter_discovered_pks(discovered_pks, patterns=['id'])
         json.dump(filtered_pks, open('{}/{}'.format(dump_dir, 'filtered_pks.json'), mode='wt'), indent=True)
+
+        pk_stats, pk_score = es.compute_pk_stats(all_classes, retrieved_pks, filtered_pks)
+        print("\nPK stats:")
+        pprint(pk_stats)
+        print("\nPK score: {} ".format(pk_score))
 
         retrieved_fks = es.retrieve_fks(metadata)
         json.dump(retrieved_fks, open('{}/{}'.format(dump_dir, 'retrieved_fks.json'), mode='wt'), indent=True)
@@ -57,21 +65,24 @@ def test_disc(connection_params=None, db_engine=None, dump_dir='data/output/dump
         if not classes_for_fk:
             classes_for_fk = all_classes
 
-        discovered_fks = es.discover_fks(db_engine, metadata, filtered_pks, classes_for_fk, max_fields_fk=4)
+        discovered_fks = es.discover_fks(db_engine, metadata, filtered_pks, classes_for_fk, max_fields=MAX_NUM_FIELDS_KEY)
         json.dump(discovered_fks, open('{}/{}'.format(dump_dir, 'discovered_fks.json'), mode='wt'), indent=True)
 
         filtered_fks = es.filter_discovered_fks(discovered_fks, sim_threshold=0.7, topk=1)
         json.dump(filtered_fks, open('{}/{}'.format(dump_dir, 'filtered_fks.json'), mode='wt'), indent=True)
 
-        pk_stats, pk_score = es.compute_pk_stats(all_classes, retrieved_pks, filtered_pks)
-        print("\nPK stats:")
-        pprint(pk_stats)
-        print("\nPK score: {} ".format(pk_score))
-
         fk_stats, fk_score = es.compute_fk_stats(all_classes, retrieved_fks, filtered_fks)
         print("\nFK stats:")
         pprint(fk_stats)
         print("\nFK score: {} ".format(fk_score))
+
+        pruned_pks = es.prune_pks_with_fks(filtered_pks, filtered_fks)
+        json.dump(pruned_pks, open('{}/{}'.format(dump_dir, 'pruned_pks.json'), mode='wt'), indent=True)
+
+        pk_pruned_stats, pk_pruned_score = es.compute_pk_stats(all_classes, retrieved_pks, pruned_pks)
+        print("\nPK pruned stats:")
+        pprint(pk_pruned_stats)
+        print("\nPK pruned score: {} ".format(pk_pruned_score))
 
         return True
     except Exception as e:
@@ -92,8 +103,9 @@ def test_disc_mssql():
 
     db_engine = ex.create_db_engine_mssql(**connection_params)
 
-    return test_disc(connection_params, db_engine=db_engine, dump_dir='data/output/adw/dumps/')
+    return test_disc(connection_params, db_engine=db_engine, dump_dir='data/output/adw2/dumps/')
 
 
 if __name__ == '__main__':
     test_disc_mssql()
+    #test_disc()

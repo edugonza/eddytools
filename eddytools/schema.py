@@ -2,8 +2,8 @@ from . import extraction as ex
 from sqlalchemy.engine import Connection, Engine, ResultProxy, RowProxy
 from sqlalchemy.schema import MetaData, Table, Column, ForeignKeyConstraint, UniqueConstraint, PrimaryKeyConstraint
 from sqlalchemy.ext.declarative.api import DeclarativeMeta
-from sqlalchemy.sql.expression import select, and_, or_, text
-from sqlalchemy.types import _Binary
+from sqlalchemy.sql.expression import select, and_, or_, text, table, func, distinct, alias
+from sqlalchemy.types import _Binary, CLOB, BLOB, Text, NullType
 from sqlalchemy.sql.base import ImmutableColumnCollection
 import itertools
 from collections import Counter
@@ -44,6 +44,7 @@ def retrieve_tables_definition(metadata: MetaData) -> dict:
             col_d['type'] = str(get_col_type(col))
             col_d['type_python'] = str(get_python_type(col))
             col_d['binary'] = is_binary_type(col)
+            columns_data.append(col_d)
         data_c = {'name': c.name,
                   'fullname': c.fullname,
                   'schema': c.schema,
@@ -55,7 +56,7 @@ def retrieve_tables_definition(metadata: MetaData) -> dict:
 def filter_binary_columns(metadata: MetaData):
     c: Table
     for c in metadata.tables.values():
-        cols_to_remove = [col for col in c.columns if isinstance(col.type, _Binary)]
+        cols_to_remove = [col for col in c.columns if isinstance(col.type, (_Binary, CLOB, BLOB, Text, NullType))]
         for col in cols_to_remove:
             c.columns._data.pop(col.name)
 
@@ -89,7 +90,22 @@ def retrieve_pks(metadata: MetaData, classes=None) -> dict:
     return pks
 
 
-def discover_pks(db_engine: Engine, metadata: MetaData, classes=None):
+def check_uniqueness_comb(db_engine: Engine, metadata: MetaData, t: Table, combination: set, idx: int):
+    if check_uniqueness(db_engine, t, combination):
+        cand = {
+            'table': t.name,
+            'schema': t.schema,
+            'fullname': t.fullname,
+            'pk_name': "{}_{}_{}_pk".format(t.name, combination.__len__(), idx),
+            'pk_columns': [c.name for c in combination],
+            'pk_columns_type': [str(get_python_type(c)) for c in combination],
+        }
+        return True, cand
+    else:
+        return False, {}
+
+
+def discover_pks(db_engine: Engine, metadata: MetaData, classes=None, max_fields=4):
     candidates = {}
     # For each class in classes:
     # Select candidate attributes sets
@@ -101,21 +117,39 @@ def discover_pks(db_engine: Engine, metadata: MetaData, classes=None):
     for c in tqdm(classes, desc='Discovering PKs'):
         t: Table = metadata.tables.get(c)
         candidates_t = []
-        for n in range(t.columns.__len__()):
-            if candidates_t.__len__() > 0:
-                break
-            combinations = itertools.combinations(t.columns, n)
-            for idx, comb in enumerate(combinations):
-                if check_uniqueness(db_engine, t, comb):
-                    cand = {
-                        'table': t.name,
-                        'schema': t.schema,
-                        'fullname': t.fullname,
-                        'pk_name': "{}_{}_{}_pk".format(t.name, n, idx),
-                        'pk_columns': [c.name for c in comb],
-                        'pk_columns_type': [str(get_python_type(c)) for c in comb],
-                    }
-                    candidates_t.append(cand)
+        unique_combs = set()
+        non_unique_columns = set()
+        for idx, col in enumerate(t.columns):
+            isunique, candidate = check_uniqueness_comb(db_engine, metadata, t, set([col]), idx)
+            if isunique:
+                candidates_t.append(candidate)
+                unique_combs.add(frozenset([col]))
+            else:
+                non_unique_columns.add(col)
+        non_unique_combs = set([frozenset([col]) for col in non_unique_columns])
+        for n in range(2, min(non_unique_columns.__len__(), max_fields)+1):
+            non_unique_combs_next = set()
+            idx = 0
+            for comb_prev in non_unique_combs:
+                comb = set([col for col in comb_prev])
+                non_unique_columns_aux = set([col for col in non_unique_columns if col not in comb])
+                for col in non_unique_columns_aux:
+                    comb_aux = set([col_comb for col_comb in comb])
+                    comb_aux.add(col)
+                    issubset = False
+                    for ucomb in unique_combs:
+                        if ucomb.issubset(comb_aux):
+                            issubset = True
+                            break
+                    if not issubset:
+                        idx = idx + 1
+                        isunique, candidate = check_uniqueness_comb(db_engine, metadata, t, comb_aux, idx)
+                        if isunique:
+                            candidates_t.append(candidate)
+                            unique_combs.add(frozenset(comb_aux))
+                        else:
+                            non_unique_combs_next.add(frozenset(comb_aux))
+            non_unique_combs = non_unique_combs_next
         candidates[c] = candidates_t
     return candidates
 
@@ -128,10 +162,13 @@ def filter_discovered_pks(discovered_pks: dict, patterns=['id']):
         for pk in pks:
             for col in pk['pk_columns']:
                 found = False
-                for p in patterns:
-                    if p in col:
-                        found = True
-                        break
+                if patterns:
+                    for p in patterns:
+                        if p in col:
+                            found = True
+                            break
+                else:
+                    found = True
                 if found:
                     filtered_pks[c].append(pk)
                     break
@@ -164,14 +201,12 @@ def check_uniqueness(db_engine: Engine, table: Table, comb):
     if comb.__len__() == 0:
         return False
     fields = [c for c in comb]
-    query = select(fields).select_from(table)
-    res: ResultProxy = db_engine.execute(query)
-    values = []
-    for r in res:
-        values.append(r.values())
-
-    total_len = values.__len__()
-    unique_len = set(tuple(i) for i in values).__len__()
+    query_total = select([func.count().label('num')]).select_from(alias(select(fields)))
+    query_unique = select([func.count().label('num')]).select_from(alias(select(fields).distinct()))
+    res_t: ResultProxy = db_engine.execute(query_total)
+    res_u: ResultProxy = db_engine.execute(query_unique)
+    total_len = res_t.first()
+    unique_len = res_u.first()
 
     return total_len == unique_len
 
@@ -204,7 +239,7 @@ def retrieve_fks(metadata: MetaData, classes=None) -> dict:
     return fks
 
 
-def discover_fks(db_engine: Engine, metadata: MetaData, pk_candidates, classes=None, max_fields_fk=4):
+def discover_fks(db_engine: Engine, metadata: MetaData, pk_candidates, classes=None, max_fields=4):
     candidates = {}
     inclusion_cache = {}
 
@@ -217,7 +252,7 @@ def discover_fks(db_engine: Engine, metadata: MetaData, pk_candidates, classes=N
     for c in tqdm(classes, desc='Discovering FKs'):
         t: Table = metadata.tables.get(c)
         candidates_t = []
-        for n in tqdm(range(1, min(t.columns.__len__(), max_fields_fk)+1), desc='Exploring candidates of length'):
+        for n in tqdm(range(1, min(t.columns.__len__(), max_fields)+1), desc='Exploring candidates of length'):
             combinations = itertools.combinations(t.columns, n)
             for idx_comb, comb in tqdm(enumerate(combinations), desc='Checking combinations'):
                 for idx_pkcand, candidate_pk_ref in enumerate(get_candidate_pks_ref(pk_candidates, [str(get_python_type(col)) for col in comb])):
@@ -239,7 +274,7 @@ def discover_fks(db_engine: Engine, metadata: MetaData, pk_candidates, classes=N
     return candidates
 
 
-def check_inclusion(db_engine: Engine, metadata: MetaData, table: Table, comb, candidate_pk, inclusion_cache={}):
+def check_inclusion_mem(db_engine: Engine, metadata: MetaData, table: Table, comb, candidate_pk, inclusion_cache={}):
     if comb.__len__() == 0:
         return False
     field_names_fk = [c.name for c in comb]
@@ -292,6 +327,60 @@ def check_inclusion(db_engine: Engine, metadata: MetaData, table: Table, comb, c
     return valid_mappings
 
 
+def check_inclusion(db_engine: Engine, metadata: MetaData, table: Table, comb, candidate_pk, inclusion_cache={}):
+    if comb.__len__() == 0:
+        return False
+    field_names_fk = [c.name for c in comb]
+    field_types_fk = [str(get_python_type(c)) for c in comb]
+    field_names_pk = candidate_pk['pk_columns']
+    field_types_pk = candidate_pk['pk_columns_type']
+
+    if table.fullname not in inclusion_cache:
+        inclusion_cache[table.fullname] = {}
+    inclusion_t = inclusion_cache[table.fullname]
+    if candidate_pk['fullname'] not in inclusion_t:
+        inclusion_t[candidate_pk['fullname']] = {}
+
+    inclusion_map = inclusion_t[candidate_pk['fullname']]
+    inclusion_map_for_k = {}
+
+    for fn_fk, ft_fk in zip(field_names_fk, field_types_fk):
+        if fn_fk not in inclusion_map:
+            inclusion_map[fn_fk] = {}
+        if fn_fk not in inclusion_map_for_k:
+            inclusion_map_for_k[fn_fk] = []
+        for fn_pk, ft_pk in zip(field_names_pk, field_types_pk):
+            if table.fullname == candidate_pk['fullname'] and fn_fk == fn_pk:
+                continue
+            elif ft_fk == ft_pk:
+                included = False
+                if fn_pk not in inclusion_map[fn_fk]:
+                    included = is_included(db_engine, metadata, table.fullname, [fn_fk], candidate_pk['fullname'], [fn_pk])
+                else:
+                    included = inclusion_map[fn_fk][fn_pk]
+                inclusion_map[fn_fk][fn_pk] = included
+                if included:
+                    inclusion_map_for_k[fn_fk].append(fn_pk)
+
+    possible_mappings = generate_mappings(field_names_fk, inclusion_map_for_k, [])
+
+    valid_mappings = []
+
+    values_fk = get_values_fields(db_engine, metadata, table.fullname, field_names_fk)
+    for m in possible_mappings:
+        values_pk = get_values_fields(db_engine, metadata, candidate_pk['fullname'], m)
+        if set(values_fk).issubset(set(values_pk)):
+            valid_mappings.append(m)
+
+    return valid_mappings
+
+
+def is_included(db_engine: Engine, metadata: MetaData, fk_tbfullname, fk_fields, pk_tbfullname, pk_fields):
+    values_fk = get_values_fields(db_engine, metadata, fk_tbfullname, fk_fields)
+    values_pk = get_values_fields(db_engine, metadata, pk_tbfullname, pk_fields)
+    return set(values_fk).issubset(set(values_pk))
+
+
 def generate_mappings(field_names_fk, inclusion_map, mapping):
     if field_names_fk.__len__() == 0:
         return [mapping]
@@ -321,6 +410,30 @@ def get_candidate_pks_ref(pks: dict, types: list):
             if Counter([type for type in types]) == Counter([type for type in pk['pk_columns_type']]):
                 candidate_pks.append(pk)
     return candidate_pks
+
+
+def prune_pks_with_fks(pks: dict, fks: dict):
+    pruned_pks = {}
+    for c in fks.keys():
+        for fk in fks[c]:
+            c_pk_ref = fk['fk_ref_table_fullname']
+            pk_name = fk['fk_ref_pk']
+            pks_c = pks[c_pk_ref]
+            if pks_c.__len__() > 1:
+                if c_pk_ref not in pruned_pks:
+                    pruned_pks[c_pk_ref] = []
+                for pk in pks_c:
+                    if pk['pk_name'] == pk_name:
+                        if pk not in pruned_pks[c_pk_ref]:
+                            pruned_pks[c_pk_ref].append(pk)
+                        break
+            else:
+                pruned_pks[c_pk_ref] = pks_c
+
+    for c in pks.keys():
+        if c not in pruned_pks:
+            pruned_pks[c] = pks[c]
+    return pruned_pks
 
 
 def compute_pk_stats(all_classes, pks: dict, discovered_pks: dict):
