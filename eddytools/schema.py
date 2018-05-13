@@ -90,8 +90,10 @@ def retrieve_pks(metadata: MetaData, classes=None) -> dict:
     return pks
 
 
-def check_uniqueness_comb(db_engine: Engine, metadata: MetaData, t: Table, combination: set, idx: int):
-    if check_uniqueness(db_engine, t, combination):
+def check_uniqueness_comb(db_engine: Engine, metadata: MetaData, t: Table, combination: set, idx: int,
+                          total_rows: int=None):
+    isunique, total_rows2, unique_len = check_uniqueness(db_engine, t, combination, total_rows)
+    if isunique:
         cand = {
             'table': t.name,
             'schema': t.schema,
@@ -100,9 +102,23 @@ def check_uniqueness_comb(db_engine: Engine, metadata: MetaData, t: Table, combi
             'pk_columns': [c.name for c in combination],
             'pk_columns_type': [str(get_python_type(c)) for c in combination],
         }
-        return True, cand
     else:
-        return False, {}
+        cand = {}
+    return isunique, total_rows2, unique_len, cand
+
+
+def check_num_comb_stats(combination: set, stats_cols: dict, total_rows: int):
+    val = 1
+    for col in combination:
+        val = val * stats_cols[col]['num_unique_vals']
+    return val >= total_rows
+
+
+def get_number_of_rows(db_engine: Engine, t: Table):
+    query_total = select([func.count().label('num')]).select_from(alias(t))
+    res_t: ResultProxy = db_engine.execute(query_total)
+    total_rows = res_t.first()['num']
+    return total_rows
 
 
 def discover_pks(db_engine: Engine, metadata: MetaData, classes=None, max_fields=4):
@@ -116,11 +132,17 @@ def discover_pks(db_engine: Engine, metadata: MetaData, classes=None, max_fields
         classes = metadata.tables.keys()
     for c in tqdm(classes, desc='Discovering PKs'):
         t: Table = metadata.tables.get(c)
+        total_rows = get_number_of_rows(db_engine, t)
+        stats_cols = {}
         candidates_t = []
         unique_combs = set()
         non_unique_columns = set()
         for idx, col in enumerate(t.columns):
-            isunique, candidate = check_uniqueness_comb(db_engine, metadata, t, set([col]), idx)
+            isunique, num_rows, num_unique_vals, candidate = check_uniqueness_comb(db_engine, metadata, t, {col}, idx,
+                                                                                   total_rows=total_rows)
+            stats_cols[col] = {'isunique': isunique,
+                               'num_rows': num_rows,
+                               'num_unique_vals': num_unique_vals}
             if isunique:
                 candidates_t.append(candidate)
                 unique_combs.add(frozenset([col]))
@@ -139,19 +161,20 @@ def discover_pks(db_engine: Engine, metadata: MetaData, classes=None, max_fields
                     comb_aux.add(col)
                     if comb_aux not in checked_comb:
                         checked_comb.add(frozenset(comb_aux))
-                        issubset = False
-                        for ucomb in unique_combs:
-                            if ucomb.issubset(comb_aux):
-                                issubset = True
-                                break
-                        if not issubset:
-                            idx = idx + 1
-                            isunique, candidate = check_uniqueness_comb(db_engine, metadata, t, comb_aux, idx)
-                            if isunique:
-                                candidates_t.append(candidate)
-                                unique_combs.add(frozenset(comb_aux))
-                            else:
-                                non_unique_combs_next.add(frozenset(comb_aux))
+                        if check_num_comb_stats(comb_aux, stats_cols, total_rows):
+                            issubset = False
+                            for ucomb in unique_combs:
+                                if ucomb.issubset(comb_aux):
+                                    issubset = True
+                                    break
+                            if not issubset:
+                                idx = idx + 1
+                                isunique, _, _, candidate = check_uniqueness_comb(db_engine, metadata, t, comb_aux, idx)
+                                if isunique:
+                                    candidates_t.append(candidate)
+                                    unique_combs.add(frozenset(comb_aux))
+                                else:
+                                    non_unique_combs_next.add(frozenset(comb_aux))
             non_unique_combs = non_unique_combs_next
         candidates[c] = candidates_t
     return candidates
@@ -200,18 +223,17 @@ def filter_discovered_fks(discovered_fks: dict, sim_threshold=0.5, topk=3):
     return filtered_fks
 
 
-def check_uniqueness(db_engine: Engine, table: Table, comb):
+def check_uniqueness(db_engine: Engine, table: Table, comb, total_rows: int=None):
     if comb.__len__() == 0:
         return False
     fields = [c for c in comb]
-    query_total = select([func.count().label('num')]).select_from(alias(select(fields)))
+    if not total_rows:
+        total_rows = get_number_of_rows(db_engine, table)
     query_unique = select([func.count().label('num')]).select_from(alias(select(fields).distinct()))
-    res_t: ResultProxy = db_engine.execute(query_total)
     res_u: ResultProxy = db_engine.execute(query_unique)
-    total_len = res_t.first()
-    unique_len = res_u.first()
+    unique_len = res_u.first()['num']
 
-    return total_len == unique_len
+    return total_rows == unique_len, total_rows, unique_len
 
 
 def retrieve_fks(metadata: MetaData, classes=None) -> dict:
