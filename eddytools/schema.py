@@ -129,6 +129,7 @@ def discover_pks(db_engine: Engine, metadata: MetaData, classes=None, max_fields
         non_unique_combs = set([frozenset([col]) for col in non_unique_columns])
         for n in range(2, min(non_unique_columns.__len__(), max_fields)+1):
             non_unique_combs_next = set()
+            checked_comb = set()
             idx = 0
             for comb_prev in non_unique_combs:
                 comb = set([col for col in comb_prev])
@@ -136,19 +137,21 @@ def discover_pks(db_engine: Engine, metadata: MetaData, classes=None, max_fields
                 for col in non_unique_columns_aux:
                     comb_aux = set([col_comb for col_comb in comb])
                     comb_aux.add(col)
-                    issubset = False
-                    for ucomb in unique_combs:
-                        if ucomb.issubset(comb_aux):
-                            issubset = True
-                            break
-                    if not issubset:
-                        idx = idx + 1
-                        isunique, candidate = check_uniqueness_comb(db_engine, metadata, t, comb_aux, idx)
-                        if isunique:
-                            candidates_t.append(candidate)
-                            unique_combs.add(frozenset(comb_aux))
-                        else:
-                            non_unique_combs_next.add(frozenset(comb_aux))
+                    if comb_aux not in checked_comb:
+                        checked_comb.add(frozenset(comb_aux))
+                        issubset = False
+                        for ucomb in unique_combs:
+                            if ucomb.issubset(comb_aux):
+                                issubset = True
+                                break
+                        if not issubset:
+                            idx = idx + 1
+                            isunique, candidate = check_uniqueness_comb(db_engine, metadata, t, comb_aux, idx)
+                            if isunique:
+                                candidates_t.append(candidate)
+                                unique_combs.add(frozenset(comb_aux))
+                            else:
+                                non_unique_combs_next.add(frozenset(comb_aux))
             non_unique_combs = non_unique_combs_next
         candidates[c] = candidates_t
     return candidates
