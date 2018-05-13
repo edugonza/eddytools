@@ -280,8 +280,12 @@ def discover_fks(db_engine: Engine, metadata: MetaData, pk_candidates, classes=N
         for n in tqdm(range(1, min(t.columns.__len__(), max_fields)+1), desc='Exploring candidates of length'):
             combinations = itertools.combinations(t.columns, n)
             for idx_comb, comb in tqdm(enumerate(combinations), desc='Checking combinations'):
-                for idx_pkcand, candidate_pk_ref in enumerate(get_candidate_pks_ref(pk_candidates, [str(get_col_type(col)) for col in comb])):
-                    for idx_mapping, mapping in enumerate(check_inclusion(db_engine, metadata, t, comb, candidate_pk_ref, inclusion_cache)):
+                for idx_pkcand, candidate_pk_ref in tqdm(enumerate(
+                        get_candidate_pks_ref(pk_candidates,
+                                              [str(get_col_type(col)) for col in comb])), desc='Checking candidates'):
+                    for idx_mapping, mapping in enumerate(
+                            check_inclusion(db_engine, metadata, t, comb,
+                                            candidate_pk_ref, inclusion_cache)):
                         cand_fk = {
                             'table': t.name,
                             'schema': t.schema,
@@ -392,7 +396,7 @@ def check_inclusion(db_engine: Engine, metadata: MetaData, table: Table, comb, c
     valid_mappings = []
 
     # values_fk = get_values_fields(db_engine, metadata, table.fullname, field_names_fk)
-    for m in possible_mappings:
+    for m in tqdm(possible_mappings, desc='Checking mappings'):
         # values_pk = get_values_fields(db_engine, metadata, candidate_pk['fullname'], m)
         # if set(values_fk).issubset(set(values_pk)):
         if is_included(db_engine, metadata, table.fullname, field_names_fk, candidate_pk['fullname'], m):
