@@ -6,17 +6,10 @@ from pkg_resources import resource_stream
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.schema import MetaData, Table
-from sqlalchemy.ext.declarative.api import DeclarativeMeta
 from sqlalchemy.schema import UniqueConstraint, PrimaryKeyConstraint
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy import types
 from sqlalchemy import inspect
-import pymssql
-# try:
-#     import pyodbc
-# except:
-#     pass
-
 
 # OpenSLEX parameters
 _OPENSLEX_SCRIPT_PATH = 'resources/metamodel.sql'
@@ -82,40 +75,17 @@ def create_mm_engine(openslex_file_path):
 
 
 # create engine for the source database using SQLAlchemy
-def create_db_engine(dialect, username, password, host, port, database, **params):
-    print("Creating DB engine")
-    db_url = '{dialect}://{username}:{password}@{host}:{port}/{database}'.format(
-        dialect=dialect,
-        username=username,
-        password=password,
-        host=host,
-        port=port,
-        database=database
-    )
-    engine = create_engine(db_url, pool_pre_ping=True)
-    print("DB engine created")
-    return engine
-
-
-def _mssql_connect(username=None, password=None, host=None, port=None, database=None, trusted_conn=False, **params):
-    # Some other example server values are
-    # server = 'localhost\sqlexpress' # for a named instance
-    # server = 'myserver,port' # to specify an alternate port
-    connection_params = {'server': host}
-    if port:
-        connection_params['port'] = port
-    if not trusted_conn:
-        connection_params['user'] = username
-        connection_params['password'] = password
-    connection_params['database'] = database
-    cnxn = pymssql.connect(**connection_params)
-    return cnxn
-
-
-# create engine for the source database using SQLAlchemy
-def create_db_engine_mssql(**params):
+def create_db_engine(dialect, host, username=None, password=None, port=None,
+                           database=None, trusted_conn=False, **params):
     print("Creating DB engine for mssql")
-    engine = create_engine('mssql+pymssql://', creator=lambda: _mssql_connect(**params), pool_pre_ping=True)
+    db_url = '{}://'.format(dialect)
+    if not trusted_conn and username and password:
+        db_url += '{username}:{password}@'.format(username=username, password=password)
+    db_url += host
+    if port:
+        db_url += ':{}'.format(port)
+    db_url += '/{}'.format(database)
+    engine = create_engine(db_url, pool_pre_ping=True, connect_args=params)
     print("DB engine created")
     return engine
 

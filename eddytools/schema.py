@@ -1,15 +1,16 @@
 from . import extraction as ex
-from sqlalchemy.engine import Connection, Engine, ResultProxy, RowProxy
+from sqlalchemy.engine import Engine, ResultProxy
 from sqlalchemy.schema import MetaData, Table, Column, ForeignKeyConstraint, UniqueConstraint, PrimaryKeyConstraint
-from sqlalchemy.ext.declarative.api import DeclarativeMeta
-from sqlalchemy.sql.expression import select, and_, or_, text, table, func, distinct, alias
+from sqlalchemy.sql.expression import select, and_, func, alias
 from sqlalchemy.types import _Binary, CLOB, BLOB, Text, NullType
-from sqlalchemy.sql.base import ImmutableColumnCollection
 import itertools
 from collections import Counter
 from tqdm import tqdm
 import jellyfish
 import numpy as np
+import os
+from pprint import pprint
+import json
 
 
 def get_python_type(col: Column):
@@ -232,7 +233,6 @@ def check_uniqueness(db_engine: Engine, table: Table, comb, total_rows: int=None
     query_unique = select([func.count().label('num')]).select_from(alias(select(fields).distinct()))
     res_u: ResultProxy = db_engine.execute(query_unique)
     unique_len = res_u.first()['num']
-
     return total_rows == unique_len, total_rows, unique_len
 
 
@@ -395,10 +395,7 @@ def check_inclusion(db_engine: Engine, metadata: MetaData, table: Table, comb, c
 
     valid_mappings = []
 
-    # values_fk = get_values_fields(db_engine, metadata, table.fullname, field_names_fk)
     for m in tqdm(possible_mappings, desc='Checking mappings'):
-        # values_pk = get_values_fields(db_engine, metadata, candidate_pk['fullname'], m)
-        # if set(values_fk).issubset(set(values_pk)):
         if is_included(db_engine, metadata, table.fullname, field_names_fk, candidate_pk['fullname'], m):
             valid_mappings.append(m)
 
@@ -406,7 +403,6 @@ def check_inclusion(db_engine: Engine, metadata: MetaData, table: Table, comb, c
 
 
 def is_included(db_engine: Engine, metadata: MetaData, fk_tbfullname, fk_field_names, pk_tbfullname, pk_field_names):
-    #query_unique = select([func.count().label('num')]).select_from(alias(select(fields).distinct()))
     tb_fk: Table = metadata.tables[fk_tbfullname]
     tb_pk: Table = metadata.tables[pk_tbfullname]
     tb_fk = tb_fk.alias('A')
@@ -418,13 +414,9 @@ def is_included(db_engine: Engine, metadata: MetaData, fk_tbfullname, fk_field_n
             tb_fk.join(
                 tb_pk, and_(fk_f == pk_f for fk_f, pk_f in zip(fk_fields, pk_fields)), isouter=True)).\
         where(and_(pk_f.is_(None) for pk_f in pk_fields)).limit(1)
-    #print(query)
     res: ResultProxy = db_engine.execute(query)
     first_res = res.first()
     not_included = first_res is None
-    # values_fk = get_values_fields(db_engine, metadata, fk_tbfullname, fk_fields)
-    # values_pk = get_values_fields(db_engine, metadata, pk_tbfullname, pk_fields)
-    # return set(values_fk).issubset(set(values_pk))
     return not_included
 
 
@@ -574,3 +566,74 @@ def create_custom_metadata(db_engine: Engine, schema: str, pks: dict, fks: dict)
             t.append_constraint(fk)
 
     return metadata
+
+
+def full_discovery(connection_params, dump_dir='data/output/dumps/',
+                   classes_for_pk=None, schemas=None, classes_for_fk=None,
+                   max_fields_key=4):
+
+    try:
+
+        os.makedirs(dump_dir, exist_ok=True)
+
+        db_engine = ex.create_db_engine(**connection_params)
+        metadata = ex.get_metadata(db_engine, schemas=schemas)
+
+        tables_def = retrieve_tables_definition(metadata)
+        json.dump(tables_def, open('{}/{}'.format(dump_dir, 'tables_def.json'), mode='wt'), indent=True)
+
+        filter_binary_columns(metadata)
+        tables_filtered_def = retrieve_tables_definition(metadata)
+        json.dump(tables_filtered_def, open('{}/{}'.format(dump_dir, 'tables_filtered_def.json'), mode='wt'), indent=True)
+
+        retrieved_pks = retrieve_pks(metadata)
+        json.dump(retrieved_pks, open('{}/{}'.format(dump_dir, 'retrieved_pks.json'), mode='wt'), indent=True)
+
+        all_classes = retrieve_classes(metadata)
+        classes_with_pk = retrieved_pks.keys()
+        classes_without_pk = [c for c in all_classes if c not in classes_with_pk]
+
+        if not classes_for_pk:
+            classes_for_pk = all_classes
+
+        discovered_pks = discover_pks(db_engine, metadata, classes_for_pk, max_fields=max_fields_key)
+        # discovered_pks = json.load(open('{}/{}'.format(dump_dir, 'discovered_pks.json'), mode='rt'))
+        json.dump(discovered_pks, open('{}/{}'.format(dump_dir, 'discovered_pks.json'), mode='wt'), indent=True)
+
+        filtered_pks = filter_discovered_pks(discovered_pks, patterns=None)
+        # filtered_pks = es.filter_discovered_pks(discovered_pks, patterns=['id'])
+        json.dump(filtered_pks, open('{}/{}'.format(dump_dir, 'filtered_pks.json'), mode='wt'), indent=True)
+
+        pk_stats, pk_score = compute_pk_stats(all_classes, retrieved_pks, filtered_pks)
+        print("\nPK stats:")
+        pprint(pk_stats)
+        print("\nPK score: {} ".format(pk_score))
+
+        retrieved_fks = retrieve_fks(metadata)
+        json.dump(retrieved_fks, open('{}/{}'.format(dump_dir, 'retrieved_fks.json'), mode='wt'), indent=True)
+
+        if not classes_for_fk:
+            classes_for_fk = all_classes
+
+        discovered_fks = discover_fks(db_engine, metadata, filtered_pks, classes_for_fk, max_fields=max_fields_key)
+        json.dump(discovered_fks, open('{}/{}'.format(dump_dir, 'discovered_fks.json'), mode='wt'), indent=True)
+
+        filtered_fks = filter_discovered_fks(discovered_fks, sim_threshold=0.7, topk=1)
+        json.dump(filtered_fks, open('{}/{}'.format(dump_dir, 'filtered_fks.json'), mode='wt'), indent=True)
+
+        fk_stats, fk_score = compute_fk_stats(all_classes, retrieved_fks, filtered_fks)
+        print("\nFK stats:")
+        pprint(fk_stats)
+        print("\nFK score: {} ".format(fk_score))
+
+        pruned_pks = prune_pks_with_fks(filtered_pks, filtered_fks)
+        json.dump(pruned_pks, open('{}/{}'.format(dump_dir, 'pruned_pks.json'), mode='wt'), indent=True)
+
+        pk_pruned_stats, pk_pruned_score = compute_pk_stats(all_classes, retrieved_pks, pruned_pks)
+        print("\nPK pruned stats:")
+        pprint(pk_pruned_stats)
+        print("\nPK pruned score: {} ".format(pk_pruned_score))
+
+        return True
+    except Exception as e:
+        raise e
