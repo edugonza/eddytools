@@ -11,9 +11,9 @@ connection_params = {
         'host': 'localhost',
         'port': '5556',
         'database': 'ds2',
-        'schema': 'public',
     }
 
+schemas = ['public']
 openslex_file_path = 'output/sample.slexmm'
 
 
@@ -21,7 +21,7 @@ def test_ds2():
 
     classes = None
     try:
-        ex.extract_to_mm(openslex_file_path, **connection_params,
+        ex.extract_to_mm(openslex_file_path, connection_params,
                          classes=classes, overwrite=True)
         assert check_mm(openslex_file_path, connection_params)
     except Exception as e:
@@ -52,19 +52,18 @@ def check_mm(openslex_file_path, connection_params):
 
 def test_custom_metadata_extraction():
     db_engine = ex.create_db_engine(**connection_params)
-    schema = connection_params['schema']
-    metadata = ex.get_metadata(db_engine, schema)
+    metadata = ex.get_metadata(db_engine, schemas)
     discovered_pks = es.discover_pks(db_engine, metadata)
     discovered_fks = es.discover_fks(db_engine, metadata,
                                      pk_candidates=discovered_pks)
-    db_meta = es.create_custom_metadata(db_engine, schema,
+    db_meta = es.create_custom_metadata(db_engine, schemas,
                                         discovered_pks, discovered_fks)
 
     db_engine.dispose()
-    ex.extract_to_mm(openslex_file_path, **connection_params, overwrite=True, metadata=db_meta)
+    ex.extract_to_mm(openslex_file_path, connection_params, overwrite=True, metadata=db_meta)
     assert check_mm(openslex_file_path, connection_params)
 
 
 if __name__ == '__main__':
-    test_ds2()
+    #test_ds2()
     test_custom_metadata_extraction()

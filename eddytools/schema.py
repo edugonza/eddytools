@@ -498,9 +498,8 @@ def recall(tp: int, p: int):
         return 1
 
 
-def create_custom_metadata(db_engine: Engine, schema: str, pks: dict, fks: dict):
-    metadata = MetaData(bind=db_engine)
-    metadata.reflect(schema=schema)
+def create_custom_metadata(db_engine: Engine, schemas: list, pks: dict, fks: dict):
+    metadata = ex.get_metadata(db_engine, schemas)
 
     # Discard any existing pk, uk or fk
     t: Table
@@ -638,6 +637,8 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
         else:
             if resume and existsdir(dump_tmp):
                 precomputed_pks = load_intermediate_ks(dump_tmp_pks, pks_suffix)
+            else:
+                precomputed_pks = {}
             discovered_pks = discover_pks(db_engine, metadata, classes_for_pk, max_fields=max_fields_key,
                                           dump_tmp_dir=dump_tmp_pks, pks_suffix=pks_suffix,
                                           precomputed_pks=precomputed_pks)
@@ -668,6 +669,8 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
         else:
             if resume and existsdir(dump_tmp):
                 precomputed_fks = load_intermediate_ks(dump_tmp_fks, fks_suffix)
+            else:
+                precomputed_fks = {}
             discovered_fks = discover_fks(db_engine, metadata, filtered_pks, classes_for_fk,
                                           max_fields=max_fields_key, dump_tmp_dir=dump_tmp_fks,
                                           fks_suffix=fks_suffix, precomputed_fks=precomputed_fks)

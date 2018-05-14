@@ -75,9 +75,9 @@ def create_mm_engine(openslex_file_path):
 
 
 # create engine for the source database using SQLAlchemy
-def create_db_engine(dialect, host, username=None, password=None, port=None,
+def create_db_engine(dialect=None, host=None, username=None, password=None, port=None,
                            database=None, trusted_conn=False, **params):
-    print("Creating DB engine for mssql")
+    print("Creating DB engine")
     db_url = '{}://'.format(dialect)
     if not trusted_conn and username and password:
         db_url += '{username}:{password}@'.format(username=username, password=password)
@@ -357,18 +357,19 @@ def insert_objects(mm_conn, mm_meta, db_conn, db_meta, classes, class_map, attr_
     return obj_v_map
 
 
-def extract_to_mm(openslex_file_path, dialect, username, password, host, port, database, schema,
+def extract_to_mm(openslex_file_path, connection_params, schemas=None,
                   overwrite=False, classes=None, metadata=None):
     # connect to the OpenSLEX mm
     try:
         create_mm(openslex_file_path, overwrite)
         mm_engine = create_mm_engine(openslex_file_path)
-        db_engine = create_db_engine(dialect, username, password, host, port, database)
-        Base, db_meta = automap_db(db_engine, schema)
+        db_engine = create_db_engine(**connection_params)
         if metadata:
             db_meta = metadata
+        else:
+            db_meta = get_metadata(db_engine, schemas)
         mm_meta = get_mm_meta(mm_engine)
-        dm_name = '{database}.{schema}'.format(database=database, schema=schema)
+        dm_name = connection_params.get('database', 'DataModel')
     except Exception as e:
         print('Something went wrong: {e}'.format(e=e))
         raise e
