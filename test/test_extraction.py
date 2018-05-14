@@ -14,7 +14,7 @@ connection_params = {
         'schema': 'public',
     }
 
-openslex_file_path = 'data/output/sample.slexmm'
+openslex_file_path = 'output/sample.slexmm'
 
 
 def test_ds2():

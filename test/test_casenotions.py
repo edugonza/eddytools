@@ -16,13 +16,13 @@ def test_candidates():
 
     stats = cn.get_stats_mm(mm_engine)
 
-    os.makedirs('data/dumps/')
+    os.makedirs('output/dumps/', exist_ok=True)
 
-    json.dump(stats, open('data/dumps/stats_mm.json', 'wt'), indent=True)
+    json.dump(stats, open('output/dumps/stats_mm.json', 'wt'), indent=True)
 
     candidates = cn.compute_candidates(mm_engine)
 
-    json.dump(candidates, open('data/dumps/candidates.json', 'wt'), indent=True)
+    json.dump(candidates, open('output/dumps/candidates.json', 'wt'), indent=True)
 
     assert candidates.__len__() > 0
 

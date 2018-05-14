@@ -11,6 +11,7 @@ import numpy as np
 import os
 from pprint import pprint
 import json
+import pickle
 
 
 def get_python_type(col: Column):
@@ -122,8 +123,9 @@ def get_number_of_rows(db_engine: Engine, t: Table):
     return total_rows
 
 
-def discover_pks(db_engine: Engine, metadata: MetaData, classes=None, max_fields=4, dump_tmp_dir: str=None):
-    candidates = {}
+def discover_pks(db_engine: Engine, metadata: MetaData, classes=None, max_fields=4, dump_tmp_dir: str=None,
+                 pks_suffix='_pks.json', precomputed_pks={}):
+    candidates = precomputed_pks
     # For each class in classes:
     # Select candidate attributes sets
     # Check uniqueness from smaller to bigger sets
@@ -135,6 +137,10 @@ def discover_pks(db_engine: Engine, metadata: MetaData, classes=None, max_fields
         for c in tpb:
             tpb.postfix = c
             tpb.update()
+            tpb.refresh()
+
+            if c in candidates:
+                continue  # PKs for this table are precomputed (because of resume)
 
             t: Table = metadata.tables.get(c)
             total_rows = get_number_of_rows(db_engine, t)
@@ -183,7 +189,7 @@ def discover_pks(db_engine: Engine, metadata: MetaData, classes=None, max_fields
                 non_unique_combs = non_unique_combs_next
             candidates[c] = candidates_t
             if dump_tmp_dir:
-                json.dump({c: candidates_t}, open('{}/{}_pks.json'.format(dump_tmp_dir, c), mode='wt'), indent=True)
+                json.dump({c: candidates_t}, open('{}/{}{}'.format(dump_tmp_dir, c, pks_suffix), mode='wt'), indent=True)
     return candidates
 
 
@@ -270,8 +276,9 @@ def retrieve_fks(metadata: MetaData, classes=None) -> dict:
     return fks
 
 
-def discover_fks(db_engine: Engine, metadata: MetaData, pk_candidates, classes=None, max_fields=4):
-    candidates = {}
+def discover_fks(db_engine: Engine, metadata: MetaData, pk_candidates, classes=None, max_fields=4, dump_tmp_dir=None,
+                 fks_suffix='_fks.json', precomputed_fks={}):
+    candidates = precomputed_fks
     inclusion_cache = {}
 
     # For each class in classes:
@@ -284,6 +291,10 @@ def discover_fks(db_engine: Engine, metadata: MetaData, pk_candidates, classes=N
         for c in tpb:
             tpb.postfix = c
             tpb.update()
+            tpb.refresh()
+
+            if c in candidates:
+                continue  # FKs for this table are precomputed (because of resume)
 
             t: Table = metadata.tables.get(c)
             candidates_t = []
@@ -310,6 +321,8 @@ def discover_fks(db_engine: Engine, metadata: MetaData, pk_candidates, classes=N
                             }
                             candidates_t.append(cand_fk)
             candidates[c] = candidates_t
+            if dump_tmp_dir:
+                json.dump({c: candidates_t}, open('{}/{}{}'.format(dump_tmp_dir, c, fks_suffix), mode='wt'), indent=True)
     return candidates
 
 
@@ -518,61 +531,153 @@ def create_custom_metadata(db_engine: Engine, schema: str, pks: dict, fks: dict)
     return metadata
 
 
-def full_discovery(connection_params, dump_dir='data/output/dumps/',
+def exists(fname: str):
+    return os.path.isfile(fname)
+
+
+def existsdir(dirname: str):
+    return os.path.isdir(dirname)
+
+
+def load_intermediate_ks(dirname: str, suffix: str):
+    ks = dict()
+    dir = os.fsencode(dirname)
+
+    for file in os.listdir(dir):
+        filename = os.fsdecode(file)
+        if filename.endswith(suffix):
+            ks_f: dict = json.load(open('{}/{}'.format(dirname, filename), mode='rt'))
+            for k in ks_f:
+                ks[k] = ks_f[k]
+    return ks
+
+
+def full_discovery(connection_params, dump_dir='output/dumps/',
                    classes_for_pk=None, schemas=None, classes_for_fk=None,
-                   max_fields_key=4):
+                   max_fields_key=4, resume=False):
 
     try:
 
         dump_tmp = '{}/tmp/'.format(dump_dir)
+        dump_tmp_pks = '{}/tmp/pks/'.format(dump_dir)
+        dump_tmp_fks = '{}/tmp/fks/'.format(dump_dir)
+
+        metadata_fname = '{}/metadata.pickle'.format(dump_dir)
+        metadata_filtered_fname = '{}/metadata_filtered.pickle'.format(dump_dir)
+
+        tables_def_fname = '{}/tables_def.json'.format(dump_dir)
+        tables_filtered_def_fname = '{}/tables_filtered_def.json'.format(dump_dir)
+
+        retrieved_pks_fname = '{}/retrieved_pks.json'.format(dump_dir)
+
+        all_classes_fname = '{}/all_classes.json'.format(dump_dir)
+
+        discovered_pks_fname = '{}/discovered_pks.json'.format(dump_dir)
+
+        filtered_pks_fname = '{}/filtered_pks.json'.format(dump_dir)
+
+        retrieved_fks_fname = '{}/retrieved_fks.json'.format(dump_dir)
+
+        discovered_fks_fname = '{}/discovered_fks.json'.format(dump_dir)
+
+        filtered_fks_fname = '{}/filtered_fks.json'.format(dump_dir)
+
+        pks_suffix = "_pks.json"
+        fks_suffix = "_fks.json"
+
         os.makedirs(dump_dir, exist_ok=True)
         os.makedirs(dump_tmp, exist_ok=True)
+        os.makedirs(dump_tmp_pks, exist_ok=True)
+        os.makedirs(dump_tmp_fks, exist_ok=True)
 
         db_engine = ex.create_db_engine(**connection_params)
-        metadata = ex.get_metadata(db_engine, schemas=schemas)
 
-        tables_def = retrieve_tables_definition(metadata)
-        json.dump(tables_def, open('{}/{}'.format(dump_dir, 'tables_def.json'), mode='wt'), indent=True)
+        if resume and exists(metadata_fname):
+            metadata = pickle.load(open(metadata_fname, mode='rb'))
+        else:
+            metadata = ex.get_metadata(db_engine, schemas=schemas)
+            pickle.dump(metadata, open(metadata_fname, mode='wb'))
 
-        filter_binary_columns(metadata)
-        tables_filtered_def = retrieve_tables_definition(metadata)
-        json.dump(tables_filtered_def, open('{}/{}'.format(dump_dir, 'tables_filtered_def.json'), mode='wt'), indent=True)
+        if resume and exists(tables_def_fname):
+            tables_def = json.load(open(tables_def_fname, mode='rt'))
+        else:
+            tables_def = retrieve_tables_definition(metadata)
+            json.dump(tables_def, open(tables_def_fname, mode='wt'), indent=True)
 
-        retrieved_pks = retrieve_pks(metadata)
-        json.dump(retrieved_pks, open('{}/{}'.format(dump_dir, 'retrieved_pks.json'), mode='wt'), indent=True)
+        if resume and exists(metadata_filtered_fname):
+            metadata = pickle.load(open(metadata_filtered_fname, mode='rb'))
+        else:
+            filter_binary_columns(metadata)
+            pickle.dump(metadata, open(metadata_filtered_fname, mode='wb'))
 
-        all_classes = retrieve_classes(metadata)
+        if resume and exists(tables_filtered_def_fname):
+            tables_filtered_def = json.load(open(tables_filtered_def_fname, mode='rt'))
+        else:
+            tables_filtered_def = retrieve_tables_definition(metadata)
+            json.dump(tables_filtered_def, open(tables_filtered_def_fname, mode='wt'), indent=True)
+
+        if resume and exists(retrieved_pks_fname):
+            retrieved_pks = json.load(open(retrieved_pks_fname, mode='rt'))
+        else:
+            retrieved_pks = retrieve_pks(metadata)
+            json.dump(retrieved_pks, open(retrieved_pks_fname, mode='wt'), indent=True)
+
+        if resume and exists(all_classes_fname):
+            all_classes = json.load(open(all_classes_fname, mode='rt'))
+        else:
+            all_classes = retrieve_classes(metadata)
+
         classes_with_pk = retrieved_pks.keys()
         classes_without_pk = [c for c in all_classes if c not in classes_with_pk]
 
         if not classes_for_pk:
             classes_for_pk = all_classes
 
-        discovered_pks = discover_pks(db_engine, metadata, classes_for_pk, max_fields=max_fields_key,
-                                      dump_tmp_dir=dump_tmp)
-        # discovered_pks = json.load(open('{}/{}'.format(dump_dir, 'discovered_pks.json'), mode='rt'))
-        json.dump(discovered_pks, open('{}/{}'.format(dump_dir, 'discovered_pks.json'), mode='wt'), indent=True)
+        if resume and exists(discovered_pks_fname):
+            discovered_pks = json.load(open(discovered_pks_fname, mode='rt'))
+        else:
+            if resume and existsdir(dump_tmp):
+                precomputed_pks = load_intermediate_ks(dump_tmp_pks, pks_suffix)
+            discovered_pks = discover_pks(db_engine, metadata, classes_for_pk, max_fields=max_fields_key,
+                                          dump_tmp_dir=dump_tmp_pks, pks_suffix=pks_suffix,
+                                          precomputed_pks=precomputed_pks)
+            json.dump(discovered_pks, open(discovered_pks_fname, mode='wt'), indent=True)
 
-        filtered_pks = filter_discovered_pks(discovered_pks, patterns=None)
-        # filtered_pks = es.filter_discovered_pks(discovered_pks, patterns=['id'])
-        json.dump(filtered_pks, open('{}/{}'.format(dump_dir, 'filtered_pks.json'), mode='wt'), indent=True)
+        if resume and exists(filtered_pks_fname):
+            filtered_pks = json.load(open(filtered_pks_fname, mode='rt'))
+        else:
+            filtered_pks = filter_discovered_pks(discovered_pks, patterns=None)
+            json.dump(filtered_pks, open(filtered_pks_fname, mode='wt'), indent=True)
 
         pk_stats, pk_score = compute_pk_stats(all_classes, retrieved_pks, filtered_pks)
         print("\nPK stats:")
         pprint(pk_stats)
         print("\nPK score: {} ".format(pk_score))
 
-        retrieved_fks = retrieve_fks(metadata)
-        json.dump(retrieved_fks, open('{}/{}'.format(dump_dir, 'retrieved_fks.json'), mode='wt'), indent=True)
+        if resume and exists(retrieved_fks_fname):
+            retrieved_fks = json.load(open(retrieved_fks_fname, mode='rt'))
+        else:
+            retrieved_fks = retrieve_fks(metadata)
+            json.dump(retrieved_fks, open(retrieved_fks_fname, mode='wt'), indent=True)
 
         if not classes_for_fk:
             classes_for_fk = all_classes
 
-        discovered_fks = discover_fks(db_engine, metadata, filtered_pks, classes_for_fk, max_fields=max_fields_key)
-        json.dump(discovered_fks, open('{}/{}'.format(dump_dir, 'discovered_fks.json'), mode='wt'), indent=True)
+        if resume and exists(discovered_fks_fname):
+            discovered_fks = json.load(open(discovered_fks_fname, mode='rt'))
+        else:
+            if resume and existsdir(dump_tmp):
+                precomputed_fks = load_intermediate_ks(dump_tmp_fks, fks_suffix)
+            discovered_fks = discover_fks(db_engine, metadata, filtered_pks, classes_for_fk,
+                                          max_fields=max_fields_key, dump_tmp_dir=dump_tmp_fks,
+                                          fks_suffix=fks_suffix, precomputed_fks=precomputed_fks)
+            json.dump(discovered_fks, open(discovered_fks_fname, mode='wt'), indent=True)
 
-        filtered_fks = filter_discovered_fks(discovered_fks, sim_threshold=0.7, topk=1)
-        json.dump(filtered_fks, open('{}/{}'.format(dump_dir, 'filtered_fks.json'), mode='wt'), indent=True)
+        if resume and exists(filtered_fks_fname):
+            filtered_fks = json.load(open(filtered_fks_fname, mode='rt'))
+        else:
+            filtered_fks = filter_discovered_fks(discovered_fks, sim_threshold=0.7, topk=1)
+            json.dump(filtered_fks, open(filtered_fks_fname, mode='wt'), indent=True)
 
         fk_stats, fk_score = compute_fk_stats(all_classes, retrieved_fks, filtered_fks)
         print("\nFK stats:")
