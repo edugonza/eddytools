@@ -5,7 +5,8 @@ import json
 import os
 
 
-def test_disc(connection_params=None, db_engine=None, dump_dir='data/output/dumps/', classes_for_pk=None, classes_for_fk=None):
+def test_disc(connection_params=None, db_engine=None, dump_dir='data/output/dumps/',
+              classes_for_pk=None, classes_for_fk=None, max_num_fields_key=4):
 
     if connection_params is None:
         connection_params = {
@@ -18,7 +19,7 @@ def test_disc(connection_params=None, db_engine=None, dump_dir='data/output/dump
             'schemas': ['public'],
         }
 
-    MAX_NUM_FIELDS_KEY = 4
+    MAX_NUM_FIELDS_KEY = max_num_fields_key
 
     schemas = connection_params.get('schemas', None)
     try:
@@ -103,7 +104,7 @@ def test_disc_mssql():
 
     db_engine = ex.create_db_engine_mssql(**connection_params)
 
-    return test_disc(connection_params, db_engine=db_engine, dump_dir='data/output/adw2/dumps/')
+    return test_disc(connection_params, db_engine=db_engine, dump_dir='data/output/adw2/dumps/', max_num_fields_key=2)
 
 
 if __name__ == '__main__':
