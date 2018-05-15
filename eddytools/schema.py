@@ -237,13 +237,29 @@ def filter_discovered_fks(discovered_fks: dict, sim_threshold=0.5, topk=3):
     return filtered_fks
 
 
+def db_supports_checksum(db_engine: Engine):
+    return str(db_engine.dialect.dialect_description).startswith('mssql')
+
+
+def get_checksum_function(db_engine: Engine):
+    if db_engine.dialect.dialect_description.startswith('mssql'):
+        return func.checksum
+    else:
+        return None
+
+
 def check_uniqueness(db_engine: Engine, table: Table, comb, total_rows: int=None):
     if comb.__len__() == 0:
         return False
     fields = [c for c in comb]
     if not total_rows:
         total_rows = get_number_of_rows(db_engine, table)
-    query_unique = select([func.count().label('num')]).select_from(alias(select(fields).distinct()))
+
+    if db_supports_checksum(db_engine):
+        checksum_method = get_checksum_function(db_engine)
+        query_unique = select([func.count(checksum_method(*fields).distinct()).label('num')])
+    else:
+        query_unique = select([func.count().label('num')]).select_from(alias(select(fields).distinct()))
     res_u: ResultProxy = db_engine.execute(query_unique)
     unique_len = res_u.first()['num']
     res_u.close()

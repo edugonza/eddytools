@@ -21,32 +21,48 @@ def test_ds2():
 
     classes = None
     try:
-        ex.extract_to_mm(openslex_file_path, connection_params,
-                         classes=classes, overwrite=True)
-        assert check_mm(openslex_file_path, connection_params)
+        db_engine = ex.create_db_engine(**connection_params)
+        metadata = ex.get_metadata(db_engine, schemas)
+        ex.extract_to_mm(openslex_file_path, connection_params, db_engine=db_engine,
+                         classes=classes, overwrite=True, metadata=metadata)
+        assert check_mm(openslex_file_path, connection_params, metadata=metadata)
     except Exception as e:
         raise e
 
 
-def check_mm(openslex_file_path, connection_params):
+def check_mm(openslex_file_path, connection_params, metadata):
+
     mm_engine = ex.create_mm_engine(openslex_file_path)
     mm_conn = mm_engine.connect()
-    mm_q = sq.select('*').select_from(text('object as O, class as CL')) \
-        .where(text('O.class_id == CL.id AND CL.name == "public.customers"'))
-    mm_res = mm_conn.execute(mm_q).fetchall()
-    mm_conn.close()
-    mm_engine.dispose()
 
     db_engine = ex.create_db_engine(**connection_params)
     db_conn = db_engine.connect()
 
-    db_q = sq.select('*').select_from(text('public.customers'))
-    db_res = db_conn.execute(db_q).fetchall()
+    check = True
+
+    for t in metadata.tables.keys():
+        mm_q = sq.select([text('count(O.id) as num')]).select_from(text('object as O, class as CL')) \
+            .where(text('O.class_id == CL.id and CL.name == "{}"'.format(t)))
+        mm_res = mm_conn.execute(mm_q)
+        mm_num = mm_res.first()
+        mm_res.close()
+
+        db_q = sq.select([text('count(*) as num')]).select_from(text(t))
+        db_res = db_conn.execute(db_q)
+        db_num = db_res.first()
+        db_res.close()
+
+        check_t = mm_num['num'] == db_num['num']
+        check = check and check_t
+
+        assert check
+
+    mm_conn.close()
+    mm_engine.dispose()
+
     db_conn.close()
     db_engine.dispose()
 
-    check = db_res.__len__() == mm_res.__len__()
-    print(check)
     return check
 
 
@@ -65,5 +81,5 @@ def test_custom_metadata_extraction():
 
 
 if __name__ == '__main__':
-    #test_ds2()
-    test_custom_metadata_extraction()
+    test_ds2()
+    #test_custom_metadata_extraction()
