@@ -19,5 +19,5 @@ def test_disc_mssql(resume=False):
 
 
 if __name__ == '__main__':
-    test_disc_mssql(resume=False)
+    test_disc_mssql(resume=True)
 

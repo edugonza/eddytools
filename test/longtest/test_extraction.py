@@ -24,8 +24,8 @@ def test_mssql():
     try:
         db_engine = ex.create_db_engine(**connection_params)
         metadata = ex.get_metadata(db_engine, schemas)
-        # ex.extract_to_mm(openslex_file_path, connection_params, db_engine=db_engine,
-        #                  classes=classes, overwrite=True, metadata=metadata)
+        ex.extract_to_mm(openslex_file_path, connection_params, db_engine=db_engine,
+                         classes=classes, overwrite=True, metadata=metadata)
         assert check_mm(openslex_file_path, connection_params, metadata=metadata)
     except Exception as e:
         raise e
@@ -63,6 +63,7 @@ def check_mm(openslex_file_path, connection_params, metadata):
 
     db_conn.close()
     db_engine.dispose()
+    print(check)
 
     return check
 

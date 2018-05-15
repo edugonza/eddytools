@@ -6,7 +6,7 @@ addons:
 services:
         - docker
 before_install:
-        #        - sudo apt-get install freetds-dev
+        - sudo apt-get install freetds-dev
         #        - cd data/adw && ./build-image.sh && ./restore-db.sh && cd ../../
         - cd data/ds2 && ./build-image.sh && ./run-image.sh && ./check-health.sh && cd ../../
 
