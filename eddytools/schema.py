@@ -120,6 +120,7 @@ def get_number_of_rows(db_engine: Engine, t: Table):
     query_total = select([func.count().label('num')]).select_from(alias(t))
     res_t: ResultProxy = db_engine.execute(query_total)
     total_rows = res_t.first()['num']
+    res_t.close()
     return total_rows
 
 
@@ -245,6 +246,7 @@ def check_uniqueness(db_engine: Engine, table: Table, comb, total_rows: int=None
     query_unique = select([func.count().label('num')]).select_from(alias(select(fields).distinct()))
     res_u: ResultProxy = db_engine.execute(query_unique)
     unique_len = res_u.first()['num']
+    res_u.close()
     return total_rows == unique_len, total_rows, unique_len
 
 
@@ -402,6 +404,7 @@ def get_values_fields(db_engine: Engine, metadata: MetaData, table: str, fields:
     values = []
     for r in res:
         values.append(tuple(r.values()))
+    res.close()
     return values
 
 
