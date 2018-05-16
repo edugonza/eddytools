@@ -278,6 +278,8 @@ def check_uniqueness(db_engine: Engine, table: Table, comb, total_rows: int=None
         sample_t = table.tablesample(sampling, name='alias', seed=text('{}'.format(SEED)))
         sample_fields = [sample_t.columns[fn.name] for fn in comb]
         query_unique = select([func.count().label('num')]).select_from(alias(select(sample_fields).distinct()))
+        
+        res_u: ResultProxy = db_engine.execute(query_unique)
     else:
 
         if db_supports_checksum(db_engine):
@@ -286,7 +288,8 @@ def check_uniqueness(db_engine: Engine, table: Table, comb, total_rows: int=None
         else:
             query_unique = select([func.count().label('num')]).select_from(alias(select(fields).distinct()))
 
-    res_u: ResultProxy = db_engine.execute(query_unique)
+        res_u: ResultProxy = db_engine.execute(query_unique)
+
     unique_len = res_u.first()['num']
     res_u.close()
 
