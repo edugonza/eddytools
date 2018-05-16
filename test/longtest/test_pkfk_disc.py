@@ -15,9 +15,9 @@ def test_disc_mssql(resume=False):
     }
 
     return es.full_discovery(connection_params, schemas=None, dump_dir='output/adw/dumps/', max_fields_key=2,
-                             resume=resume)
+                             resume=resume, sampling=5000)
 
 
 if __name__ == '__main__':
-    test_disc_mssql(resume=True)
+    test_disc_mssql(resume=False)
 

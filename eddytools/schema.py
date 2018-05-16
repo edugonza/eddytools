@@ -1,7 +1,7 @@
 from . import extraction as ex
 from sqlalchemy.engine import Engine, ResultProxy
 from sqlalchemy.schema import MetaData, Table, Column, ForeignKeyConstraint, UniqueConstraint, PrimaryKeyConstraint
-from sqlalchemy.sql.expression import select, and_, func, alias
+from sqlalchemy.sql.expression import select, and_, func, alias, text, tablesample
 from sqlalchemy.types import _Binary, CLOB, BLOB, Text, NullType
 import itertools
 from collections import Counter
@@ -12,6 +12,8 @@ import os
 from pprint import pprint
 import json
 import pickle
+
+SEED: int = 50
 
 
 def get_python_type(col: Column):
@@ -93,8 +95,8 @@ def retrieve_pks(metadata: MetaData, classes=None) -> dict:
 
 
 def check_uniqueness_comb(db_engine: Engine, metadata: MetaData, t: Table, combination: set, idx: int,
-                          total_rows: int=None):
-    isunique, total_rows2, unique_len = check_uniqueness(db_engine, t, combination, total_rows)
+                          total_rows: int=None, sampling: int=0):
+    isunique, total_rows2, unique_len = check_uniqueness(db_engine, t, combination, total_rows, sampling=sampling)
     if isunique:
         cand = {
             'table': t.name,
@@ -109,15 +111,22 @@ def check_uniqueness_comb(db_engine: Engine, metadata: MetaData, t: Table, combi
     return isunique, total_rows2, unique_len, cand
 
 
-def check_num_comb_stats(combination: set, stats_cols: dict, total_rows: int):
+def check_num_comb_stats(combination: set, stats_cols: dict, total_rows: int, sampling: int=0):
+    if sampling > 0:
+        return True
     val = 1
     for col in combination:
         val = val * stats_cols[col]['num_unique_vals']
     return val >= total_rows
 
 
-def get_number_of_rows(db_engine: Engine, t: Table):
-    query_total = select([func.count().label('num')]).select_from(alias(t))
+def get_number_of_rows(db_engine: Engine, t: Table, sampling: int=0):
+    sampling = int(sampling)
+    if 100 > sampling > 0:
+        query_total = select([func.count().label('num')]).select_from(
+            t.tablesample(sampling, name='alias', seed=text('{}'.format(SEED))))
+    else:
+        query_total = select([func.count().label('num')]).select_from(alias(t))
     res_t: ResultProxy = db_engine.execute(query_total)
     total_rows = res_t.first()['num']
     res_t.close()
@@ -125,7 +134,7 @@ def get_number_of_rows(db_engine: Engine, t: Table):
 
 
 def discover_pks(db_engine: Engine, metadata: MetaData, classes=None, max_fields=4, dump_tmp_dir: str=None,
-                 pks_suffix='_pks.json', precomputed_pks={}):
+                 pks_suffix='_pks.json', precomputed_pks={}, sampling: int=0):
     candidates = precomputed_pks
     # For each class in classes:
     # Select candidate attributes sets
@@ -145,13 +154,19 @@ def discover_pks(db_engine: Engine, metadata: MetaData, classes=None, max_fields
 
             t: Table = metadata.tables.get(c)
             total_rows = get_number_of_rows(db_engine, t)
+            if sampling > 0 and total_rows > 0:
+                sampling_perc = (min(sampling, total_rows) / total_rows) * 100
+                total_rows = get_number_of_rows(db_engine, t, sampling_perc)
+            else:
+                sampling_perc = 0
             stats_cols = {}
             candidates_t = []
             unique_combs = set()
             non_unique_columns = set()
             for idx, col in tqdm(enumerate(t.columns), desc='Checking unique columns'):
-                isunique, num_rows, num_unique_vals, candidate = check_uniqueness_comb(db_engine, metadata, t, {col}, idx,
-                                                                                       total_rows=total_rows)
+                isunique, num_rows, num_unique_vals, candidate =\
+                    check_uniqueness_comb(db_engine, metadata, t, {col}, idx,
+                                          total_rows=total_rows, sampling=sampling_perc)
                 stats_cols[col] = {'isunique': isunique,
                                    'num_rows': num_rows,
                                    'num_unique_vals': num_unique_vals}
@@ -161,7 +176,8 @@ def discover_pks(db_engine: Engine, metadata: MetaData, classes=None, max_fields
                 else:
                     non_unique_columns.add(col)
             non_unique_combs = set([frozenset([col]) for col in non_unique_columns])
-            for n in tqdm(range(2, min(non_unique_columns.__len__(), max_fields)+1), desc='Exploring candidates of length'):
+            for n in tqdm(range(2, min(non_unique_columns.__len__(), max_fields)+1),
+                          desc='Exploring candidates of length'):
                 non_unique_combs_next = set()
                 checked_comb = set()
                 idx = 0
@@ -173,7 +189,7 @@ def discover_pks(db_engine: Engine, metadata: MetaData, classes=None, max_fields
                         comb_aux.add(col)
                         if comb_aux not in checked_comb:
                             checked_comb.add(frozenset(comb_aux))
-                            if check_num_comb_stats(comb_aux, stats_cols, total_rows):
+                            if check_num_comb_stats(comb_aux, stats_cols, total_rows, sampling=sampling_perc):
                                 issubset = False
                                 for ucomb in unique_combs:
                                     if ucomb.issubset(comb_aux):
@@ -181,7 +197,9 @@ def discover_pks(db_engine: Engine, metadata: MetaData, classes=None, max_fields
                                         break
                                 if not issubset:
                                     idx = idx + 1
-                                    isunique, _, _, candidate = check_uniqueness_comb(db_engine, metadata, t, comb_aux, idx)
+                                    isunique, _, _, candidate =\
+                                        check_uniqueness_comb(db_engine, metadata, t, comb_aux, idx,
+                                                              total_rows=total_rows, sampling=sampling_perc)
                                     if isunique:
                                         candidates_t.append(candidate)
                                         unique_combs.add(frozenset(comb_aux))
@@ -248,21 +266,30 @@ def get_checksum_function(db_engine: Engine):
         return None
 
 
-def check_uniqueness(db_engine: Engine, table: Table, comb, total_rows: int=None):
+def check_uniqueness(db_engine: Engine, table: Table, comb, total_rows: int=None, sampling: int=0):
     if comb.__len__() == 0:
         return False
     fields = [c for c in comb]
     if not total_rows:
-        total_rows = get_number_of_rows(db_engine, table)
+        total_rows = get_number_of_rows(db_engine, table, sampling)
 
-    if db_supports_checksum(db_engine):
-        checksum_method = get_checksum_function(db_engine)
-        query_unique = select([func.count(checksum_method(*fields).distinct()).label('num')])
+    sampling = int(sampling)
+    if 100 > sampling > 0:
+        sample_t = table.tablesample(sampling, name='alias', seed=text('{}'.format(SEED)))
+        sample_fields = [sample_t.columns[fn.name] for fn in comb]
+        query_unique = select([func.count().label('num')]).select_from(alias(select(sample_fields).distinct()))
     else:
-        query_unique = select([func.count().label('num')]).select_from(alias(select(fields).distinct()))
+
+        if db_supports_checksum(db_engine):
+            checksum_method = get_checksum_function(db_engine)
+            query_unique = select([func.count(checksum_method(*fields).distinct()).label('num')])
+        else:
+            query_unique = select([func.count().label('num')]).select_from(alias(select(fields).distinct()))
+
     res_u: ResultProxy = db_engine.execute(query_unique)
     unique_len = res_u.first()['num']
     res_u.close()
+
     return total_rows == unique_len, total_rows, unique_len
 
 
@@ -295,7 +322,7 @@ def retrieve_fks(metadata: MetaData, classes=None) -> dict:
 
 
 def discover_fks(db_engine: Engine, metadata: MetaData, pk_candidates, classes=None, max_fields=4, dump_tmp_dir=None,
-                 fks_suffix='_fks.json', precomputed_fks={}):
+                 fks_suffix='_fks.json', precomputed_fks={}, sampling: int=0):
     candidates = precomputed_fks
     inclusion_cache = {}
 
@@ -572,7 +599,7 @@ def load_intermediate_ks(dirname: str, suffix: str):
 
 def full_discovery(connection_params, dump_dir='output/dumps/',
                    classes_for_pk=None, schemas=None, classes_for_fk=None,
-                   max_fields_key=4, resume=False):
+                   max_fields_key=4, resume=False, sampling: int=0):
 
     try:
 
@@ -660,7 +687,7 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
                 precomputed_pks = {}
             discovered_pks = discover_pks(db_engine, metadata, classes_for_pk, max_fields=max_fields_key,
                                           dump_tmp_dir=dump_tmp_pks, pks_suffix=pks_suffix,
-                                          precomputed_pks=precomputed_pks)
+                                          precomputed_pks=precomputed_pks, sampling=sampling)
             json.dump(discovered_pks, open(discovered_pks_fname, mode='wt'), indent=True)
 
         if resume and exists(filtered_pks_fname):
@@ -692,7 +719,8 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
                 precomputed_fks = {}
             discovered_fks = discover_fks(db_engine, metadata, filtered_pks, classes_for_fk,
                                           max_fields=max_fields_key, dump_tmp_dir=dump_tmp_fks,
-                                          fks_suffix=fks_suffix, precomputed_fks=precomputed_fks)
+                                          fks_suffix=fks_suffix, precomputed_fks=precomputed_fks,
+                                          sampling=sampling)
             json.dump(discovered_fks, open(discovered_fks_fname, mode='wt'), indent=True)
 
         if resume and exists(filtered_fks_fname):
