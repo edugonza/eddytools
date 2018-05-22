@@ -278,7 +278,7 @@ def check_uniqueness(db_engine: Engine, table: Table, comb, total_rows: int=None
         sample_t = table.tablesample(sampling, name='alias', seed=text('{}'.format(SEED)))
         sample_fields = [sample_t.columns[fn.name] for fn in comb]
         query_unique = select([func.count().label('num')]).select_from(alias(select(sample_fields).distinct()))
-        
+
         res_u: ResultProxy = db_engine.execute(query_unique)
     else:
 
@@ -325,10 +325,10 @@ def retrieve_fks(metadata: MetaData, classes=None) -> dict:
 
 
 def discover_fks(db_engine: Engine, metadata: MetaData, pk_candidates, classes=None, max_fields=4, dump_tmp_dir=None,
-                 fks_suffix='_fks.json', precomputed_fks={}, sampling: int=0):
+                 fks_suffix='_fks.json', precomputed_fks={}, sampling: int=0, cache_dir=None):
     candidates = precomputed_fks
     inclusion_cache = {}
-
+    cached_values = {}
     # For each class in classes:
     # Get candidate fields that match PKs attribute set
     # Explore pairs of PKs-FKs and check inclusion
@@ -354,7 +354,7 @@ def discover_fks(db_engine: Engine, metadata: MetaData, pk_candidates, classes=N
                                                   [str(get_col_type(col)) for col in comb])), desc='Checking candidates'):
                         for idx_mapping, mapping in enumerate(
                                 check_inclusion(db_engine, metadata, t, comb,
-                                                candidate_pk_ref, inclusion_cache)):
+                                                candidate_pk_ref, inclusion_cache, cached_values, cache_dir)):
                             cand_fk = {
                                 'table': t.name,
                                 'schema': t.schema,
@@ -374,7 +374,8 @@ def discover_fks(db_engine: Engine, metadata: MetaData, pk_candidates, classes=N
     return candidates
 
 
-def check_inclusion(db_engine: Engine, metadata: MetaData, table: Table, comb, candidate_pk, inclusion_cache={}):
+def check_inclusion(db_engine: Engine, metadata: MetaData, table: Table, comb, candidate_pk, inclusion_cache={},
+                    cached_values=None, cache_dir=None, sampling=0):
     if comb.__len__() == 0:
         return False
     field_names_fk = [c.name for c in comb]
@@ -392,7 +393,7 @@ def check_inclusion(db_engine: Engine, metadata: MetaData, table: Table, comb, c
     inclusion_map_for_k = {}
 
     for fn_fk, ft_fk in zip(field_names_fk, field_types_fk):
-        values_fn_fk = set(get_values_fields(db_engine, metadata, table.fullname, [fn_fk]))
+        values_fn_fk = set(get_sample_values_fields(db_engine, metadata, table.fullname, [fn_fk], sampling=sampling))
         if fn_fk not in inclusion_map:
             inclusion_map[fn_fk] = {}
         if fn_fk not in inclusion_map_for_k:
@@ -403,8 +404,9 @@ def check_inclusion(db_engine: Engine, metadata: MetaData, table: Table, comb, c
             elif ft_fk == ft_pk:
                 included = False
                 if fn_pk not in inclusion_map[fn_fk]:
-                    included = is_included(db_engine, metadata, table.fullname, [fn_fk],
-                                           candidate_pk['fullname'], [fn_pk], values_fn_fk)
+                    included = is_included(db_engine, metadata, cached_values, cache_dir,
+                                           table.fullname, [fn_fk], pk_tbfullname=candidate_pk['fullname'],
+                                           pk_field_names=[fn_pk], values_fk=values_fn_fk, sampling=sampling)
                 else:
                     included = inclusion_map[fn_fk][fn_pk]
                 inclusion_map[fn_fk][fn_pk] = included
@@ -415,20 +417,39 @@ def check_inclusion(db_engine: Engine, metadata: MetaData, table: Table, comb, c
 
     valid_mappings = []
 
-    values_fk = set(get_values_fields(db_engine, metadata, table.fullname, field_names_fk))
+    values_fk = set(get_sample_values_fields(db_engine, metadata, table.fullname, field_names_fk, sampling=sampling))
     for m in tqdm(possible_mappings, desc='Checking mappings'):
-        if is_included(db_engine, metadata, table.fullname, field_names_fk, candidate_pk['fullname'], m, values_fk):
+        if is_included(db_engine, metadata, cached_values, cache_dir, table.fullname, field_names_fk,
+                       pk_name=candidate_pk['pk_name'], pk_tbfullname=candidate_pk['fullname'],
+                       pk_field_names=m, values_fk=values_fk):
             valid_mappings.append(m)
 
     return valid_mappings
 
 
-def is_included(db_engine: Engine, metadata: MetaData, fk_tbfullname, fk_field_names, pk_tbfullname, pk_field_names,
-                values_fk: set=None):
+def is_included(db_engine: Engine, metadata: MetaData, cached_values, cache_dir, fk_tbfullname, fk_field_names,
+                pk_name=None, pk_tbfullname=None, pk_field_names=None, values_fk: set=None, sampling=0):
     if not values_fk:
-        values_fk = set(get_values_fields(db_engine, metadata, fk_tbfullname, fk_field_names))
-    values_pk = set(get_values_fields(db_engine, metadata, pk_tbfullname, pk_field_names))
+        values_fk = set(get_sample_values_fields(db_engine, metadata, fk_tbfullname, fk_field_names, sampling))
+    if pk_name and pk_name in cached_values:
+        values_pk = load_cached_values(cached_values, pk_name)
+    else:
+        values_pk = set(get_sample_values_fields(db_engine, metadata, pk_tbfullname, pk_field_names, 0))
+        if cache_dir and pk_name:
+            cache_values(cached_values, cache_dir, pk_name, values_pk)
     return values_fk.issubset(values_pk)
+
+
+def load_cached_values(cache: dict, keyname):
+    f = cache[keyname]
+    values = pickle.load(open(f, mode='rb'))
+    return values
+
+
+def cache_values(cache: dict, cache_dir, keyname, values):
+    f = '{}/{}.pickle'.format(cache_dir, keyname)
+    cache[keyname] = f
+    pickle.dump(values, open(f, mode='wb'))
 
 
 def generate_mappings(field_names_fk, inclusion_map, mapping):
@@ -443,15 +464,33 @@ def generate_mappings(field_names_fk, inclusion_map, mapping):
     return mappings
 
 
-def get_values_fields(db_engine: Engine, metadata: MetaData, table: str, fields: list):
+# def get_values_fields(db_engine: Engine, metadata: MetaData, table: str, fields: list):
+#     tb = metadata.tables.get(table)
+#     query = select([tb.columns.get(f) for f in fields]).select_from(tb)
+#     res: ResultProxy = db_engine.execute(query)
+#     values = []
+#     for r in res:
+#         values.append(tuple(r.values()))
+#     res.close()
+#     return values
+
+
+def get_sample_values_fields(db_engine: Engine, metadata: MetaData, table: str, fields: list, sampling: int=0):
     tb = metadata.tables.get(table)
-    query = select([tb.columns.get(f) for f in fields]).select_from(tb)
+    if 100 > sampling > 0:
+        sample_t = tb.tablesample(sampling, seed=text('{}'.format(SEED)))
+        sample_fields = [sample_t.columns[f] for f in fields]
+        query = select(sample_fields).select_from(sample_t)
+    else:
+        query = select([tb.columns.get(f) for f in fields]).select_from(tb)
+
     res: ResultProxy = db_engine.execute(query)
     values = []
     for r in res:
         values.append(tuple(r.values()))
     res.close()
     return values
+
 
 
 def get_candidate_pks_ref(pks: dict, types: list):
@@ -609,6 +648,7 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
         dump_tmp = '{}/tmp/'.format(dump_dir)
         dump_tmp_pks = '{}/tmp/pks/'.format(dump_dir)
         dump_tmp_fks = '{}/tmp/fks/'.format(dump_dir)
+        dump_tmp_cache = '{}/tmp/cache/'.format(dump_dir)
 
         metadata_fname = '{}/metadata.pickle'.format(dump_dir)
         metadata_filtered_fname = '{}/metadata_filtered.pickle'.format(dump_dir)
@@ -637,6 +677,7 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
         os.makedirs(dump_tmp, exist_ok=True)
         os.makedirs(dump_tmp_pks, exist_ok=True)
         os.makedirs(dump_tmp_fks, exist_ok=True)
+        os.makedirs(dump_tmp_cache, exist_ok=True)
 
         db_engine = ex.create_db_engine(**connection_params)
 
@@ -723,7 +764,7 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
             discovered_fks = discover_fks(db_engine, metadata, filtered_pks, classes_for_fk,
                                           max_fields=max_fields_key, dump_tmp_dir=dump_tmp_fks,
                                           fks_suffix=fks_suffix, precomputed_fks=precomputed_fks,
-                                          sampling=sampling)
+                                          sampling=sampling, cache_dir=dump_tmp_cache)
             json.dump(discovered_fks, open(discovered_fks_fname, mode='wt'), indent=True)
 
         if resume and exists(filtered_fks_fname):
