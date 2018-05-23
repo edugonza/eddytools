@@ -345,6 +345,14 @@ def discover_fks(db_engine: Engine, metadata: MetaData, pk_candidates, classes=N
                 continue  # FKs for this table are precomputed (because of resume)
 
             t: Table = metadata.tables.get(c)
+
+            total_rows = get_number_of_rows(db_engine, t)
+            if sampling > 0 and total_rows > 0:
+                sampling_perc = (min(sampling, total_rows) / total_rows) * 100
+                total_rows = get_number_of_rows(db_engine, t, sampling_perc)
+            else:
+                sampling_perc = 0
+
             candidates_t = []
             for n in tqdm(range(1, min(t.columns.__len__(), max_fields)+1), desc='Exploring candidates of length'):
                 combinations = itertools.combinations(t.columns, n)
@@ -353,8 +361,8 @@ def discover_fks(db_engine: Engine, metadata: MetaData, pk_candidates, classes=N
                             get_candidate_pks_ref(pk_candidates,
                                                   [str(get_col_type(col)) for col in comb])), desc='Checking candidates'):
                         for idx_mapping, mapping in enumerate(
-                                check_inclusion(db_engine, metadata, t, comb,
-                                                candidate_pk_ref, inclusion_cache, cached_values, cache_dir)):
+                                check_inclusion(db_engine, metadata, t, comb, candidate_pk_ref, inclusion_cache,
+                                                cached_values, cache_dir, sampling=sampling_perc)):
                             cand_fk = {
                                 'table': t.name,
                                 'schema': t.schema,
@@ -375,6 +383,62 @@ def discover_fks(db_engine: Engine, metadata: MetaData, pk_candidates, classes=N
 
 
 def check_inclusion(db_engine: Engine, metadata: MetaData, table: Table, comb, candidate_pk, inclusion_cache={},
+                    cached_values=None, cache_dir=None, sampling=0):
+    return check_inclusion_in_db(db_engine, metadata, table, comb, candidate_pk, inclusion_cache, cached_values,
+                                 cache_dir, sampling)
+
+
+def check_inclusion_in_db(db_engine: Engine, metadata: MetaData, table: Table, comb, candidate_pk, inclusion_cache={},
+                    cached_values=None, cache_dir=None, sampling=0):
+    if comb.__len__() == 0:
+        return False
+    field_names_fk = [c.name for c in comb]
+    field_types_fk = [str(get_col_type(c)) for c in comb]
+    field_names_pk = candidate_pk['pk_columns']
+    field_types_pk = candidate_pk['pk_columns_type']
+
+    if table.fullname not in inclusion_cache:
+        inclusion_cache[table.fullname] = {}
+    inclusion_t = inclusion_cache[table.fullname]
+    if candidate_pk['fullname'] not in inclusion_t:
+        inclusion_t[candidate_pk['fullname']] = {}
+
+    inclusion_map = inclusion_t[candidate_pk['fullname']]
+    inclusion_map_for_k = {}
+
+    for fn_fk, ft_fk in zip(field_names_fk, field_types_fk):
+        if fn_fk not in inclusion_map:
+            inclusion_map[fn_fk] = {}
+        if fn_fk not in inclusion_map_for_k:
+            inclusion_map_for_k[fn_fk] = []
+        for fn_pk, ft_pk in zip(field_names_pk, field_types_pk):
+            if table.fullname == candidate_pk['fullname'] and fn_fk == fn_pk:
+                continue
+            elif ft_fk == ft_pk:
+                included = False
+                if fn_pk not in inclusion_map[fn_fk]:
+                    included = is_included_server_side(db_engine, metadata, table.fullname, [fn_fk],
+                                                       pk_tbfullname=candidate_pk['fullname'],
+                                                       pk_field_names=[fn_pk], sampling=sampling)
+                else:
+                    included = inclusion_map[fn_fk][fn_pk]
+                inclusion_map[fn_fk][fn_pk] = included
+                if included:
+                    inclusion_map_for_k[fn_fk].append(fn_pk)
+
+    possible_mappings = generate_mappings(field_names_fk, inclusion_map_for_k, [])
+
+    valid_mappings = []
+
+    for m in tqdm(possible_mappings, desc='Checking mappings'):
+        if is_included_server_side(db_engine, metadata, table.fullname, field_names_fk,
+                       pk_tbfullname=candidate_pk['fullname'], pk_field_names=m, sampling=sampling):
+            valid_mappings.append(m)
+
+    return valid_mappings
+
+
+def check_inclusion_in_mem(db_engine: Engine, metadata: MetaData, table: Table, comb, candidate_pk, inclusion_cache={},
                     cached_values=None, cache_dir=None, sampling=0):
     if comb.__len__() == 0:
         return False
@@ -440,6 +504,26 @@ def is_included(db_engine: Engine, metadata: MetaData, cached_values, cache_dir,
     return values_fk.issubset(values_pk)
 
 
+def is_included_server_side(db_engine: Engine, metadata: MetaData, fk_tbfullname, fk_field_names, pk_tbfullname,
+                            pk_field_names, sampling=0):
+    tb_fk: Table = metadata.tables[fk_tbfullname]
+    tb_pk: Table = metadata.tables[pk_tbfullname]
+    tb_fk = tb_fk.alias('A')
+    tb_pk = tb_pk.alias('B')
+    tb_sample_fk = tb_fk.tablesample(sampling, name='C', seed=text('{}'.format(SEED)))
+    fk_fields = [tb_sample_fk.columns[col] for col in fk_field_names]
+    pk_fields = [tb_pk.columns[col] for col in pk_field_names]
+    query = select(fk_fields).\
+        select_from(
+            tb_sample_fk.join(
+                tb_pk, and_(fk_f == pk_f for fk_f, pk_f in zip(fk_fields, pk_fields)), isouter=True)).\
+        where(and_(pk_f.is_(None) for pk_f in pk_fields)).limit(1)
+    res: ResultProxy = db_engine.execute(query)
+    first_res = res.first()
+    not_included = first_res is None
+    return not_included
+
+
 def load_cached_values(cache: dict, keyname):
     f = cache[keyname]
     values = pickle.load(open(f, mode='rb'))
@@ -490,7 +574,6 @@ def get_sample_values_fields(db_engine: Engine, metadata: MetaData, table: str, 
         values.append(tuple(r.values()))
     res.close()
     return values
-
 
 
 def get_candidate_pks_ref(pks: dict, types: list):
