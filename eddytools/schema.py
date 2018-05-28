@@ -873,3 +873,11 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
         return True
     except Exception as e:
         raise e
+
+
+def load_list_classes(file):
+    classes = None
+    if os._exists(file):
+        classes = json.load(file)
+
+    return classes
