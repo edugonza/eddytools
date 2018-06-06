@@ -813,7 +813,7 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
                 precomputed_pks = load_intermediate_ks(dump_tmp_pks, pks_suffix)
             else:
                 precomputed_pks = FileCache('precomputed_pks', flag='ns')
-            discovered_pks = discover_pks(db_engine, metadata, classes_for_pk, max_fields=max_fields_key,
+            discovered_pks = discover_pks(db_engine, metadata, classes=classes_for_pk, max_fields=max_fields_key,
                                           dump_tmp_dir=dump_tmp_pks, pks_suffix=pks_suffix,
                                           precomputed_pks=precomputed_pks, sampling=sampling)
             # json.dump(discovered_pks, open(discovered_pks_fname, mode='wt'), indent=True) FIXME
@@ -880,3 +880,5 @@ def load_list_classes(file):
     if exists(file):
         print("Loading classes from: {}".format(file))
         classes = json.load(open(file, mode='rt'))
+
+    return classes
