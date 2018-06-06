@@ -710,8 +710,8 @@ def existsdir(dirname: str):
     return os.path.isdir(dirname)
 
 
-def load_intermediate_ks(dirname: str, suffix: str):
-    ks = FileCache('precomputed_ks-{}'.format(suffix), flag='ns')
+def load_intermediate_ks(dirname: str, suffix: str, cache_dir):
+    ks = FileCache('precomputed_ks-{}'.format(suffix), flag='ns', app_cache_dir=cache_dir)
     dir = os.fsencode(dirname)
 
     for file in os.listdir(dir):
@@ -810,7 +810,7 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
             discovered_pks = json.load(open(discovered_pks_fname, mode='rt'))
         else:
             if resume and existsdir(dump_tmp):
-                precomputed_pks = load_intermediate_ks(dump_tmp_pks, pks_suffix)
+                precomputed_pks = load_intermediate_ks(dump_tmp_pks, pks_suffix, dump_tmp_cache)
             else:
                 precomputed_pks = FileCache('precomputed_pks', flag='ns')
             discovered_pks = discover_pks(db_engine, metadata, classes=classes_for_pk, max_fields=max_fields_key,
@@ -842,7 +842,7 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
             discovered_fks = json.load(open(discovered_fks_fname, mode='rt'))
         else:
             if resume and existsdir(dump_tmp):
-                precomputed_fks = load_intermediate_ks(dump_tmp_fks, fks_suffix)
+                precomputed_fks = load_intermediate_ks(dump_tmp_fks, fks_suffix, dump_tmp_cache)
             else:
                 precomputed_fks = FileCache('precomputed_fks', flag='ns')
             discovered_fks = discover_fks(db_engine, metadata, filtered_pks, classes=classes_for_fk,
