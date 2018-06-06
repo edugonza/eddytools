@@ -836,7 +836,7 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
             json.dump(retrieved_fks, open(retrieved_fks_fname, mode='wt'), indent=True)
 
         if not classes_for_fk:
-            classes_for_fk = all_classes
+            classes_for_fk = classes_for_pk
 
         if resume and exists(discovered_fks_fname):
             discovered_fks = json.load(open(discovered_fks_fname, mode='rt'))
@@ -845,7 +845,7 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
                 precomputed_fks = load_intermediate_ks(dump_tmp_fks, fks_suffix)
             else:
                 precomputed_fks = FileCache('precomputed_fks', flag='ns')
-            discovered_fks = discover_fks(db_engine, metadata, filtered_pks, classes_for_fk,
+            discovered_fks = discover_fks(db_engine, metadata, filtered_pks, classes=classes_for_fk,
                                           max_fields=max_fields_key, dump_tmp_dir=dump_tmp_fks,
                                           fks_suffix=fks_suffix, precomputed_fks=precomputed_fks,
                                           sampling=sampling, cache_dir=dump_tmp_cache)
@@ -877,7 +877,6 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
 
 def load_list_classes(file):
     classes = None
-    if os._exists(file):
-        classes = json.load(file)
-
-    return classes
+    if exists(file):
+        print("Loading classes from: {}".format(file))
+        classes = json.load(open(file, mode='rt'))
