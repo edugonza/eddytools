@@ -2,6 +2,7 @@ import eddytools.extraction as ex
 import eddytools.casenotions as cn
 import json
 import os
+import random
 
 openslex_file_path = 'data/mm/metamodel-sample.slexmm'
 
@@ -23,6 +24,17 @@ def test_candidates():
     candidates = cn.compute_candidates(mm_engine)
 
     json.dump(candidates, open('output/dumps/candidates.json', 'wt'), indent=True)
+
+    random.seed(0)
+
+    random.shuffle(candidates)
+
+    for idx, cand in enumerate(candidates[:10]):
+        log_name = 'log_test_{}'.format(idx)
+        print('Computing Log: {}'.format(log_name))
+        cn.build_log_for_case_notion(mm_engine, cand,
+                                     proc_name='proc_test_{}'.format(idx),
+                                     log_name=log_name)
 
     assert candidates.__len__() > 0
 
