@@ -13,6 +13,7 @@ from pprint import pprint
 import json
 import pickle
 from fcache.cache import FileCache
+from datetime import datetime
 
 SEED: int = 50
 
@@ -813,9 +814,12 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
                 precomputed_pks = load_intermediate_ks(dump_tmp_pks, pks_suffix, dump_tmp_cache)
             else:
                 precomputed_pks = FileCache('precomputed_pks', flag='ns')
+
+            pk_start_time = datetime.now()
             discovered_pks = discover_pks(db_engine, metadata, classes=classes_for_pk, max_fields=max_fields_key,
                                           dump_tmp_dir=dump_tmp_pks, pks_suffix=pks_suffix,
                                           precomputed_pks=precomputed_pks, sampling=sampling)
+            pk_end_time = datetime.now()
             # json.dump(discovered_pks, open(discovered_pks_fname, mode='wt'), indent=True) FIXME
 
         if resume and exists(filtered_pks_fname):
@@ -825,9 +829,16 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
             json.dump(filtered_pks, open(filtered_pks_fname, mode='wt'), indent=True)
 
         pk_stats, pk_score = compute_pk_stats(all_classes, retrieved_pks, filtered_pks)
+        try:
+            pk_score['time'] = (pk_end_time - pk_start_time).total_seconds()
+        except NameError:
+            pass
         print("\nPK stats:")
         pprint(pk_stats)
         print("\nPK score: {} ".format(pk_score))
+
+        json.dump(pk_stats, open('{}/{}'.format(dump_dir, 'pk_stats.json'), mode='wt'), indent=True)
+        json.dump(pk_score, open('{}/{}'.format(dump_dir, 'pk_score.json'), mode='wt'), indent=True)
 
         if resume and exists(retrieved_fks_fname):
             retrieved_fks = json.load(open(retrieved_fks_fname, mode='rt'))
@@ -845,10 +856,12 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
                 precomputed_fks = load_intermediate_ks(dump_tmp_fks, fks_suffix, dump_tmp_cache)
             else:
                 precomputed_fks = FileCache('precomputed_fks', flag='ns')
+            fk_start_time = datetime.now()
             discovered_fks = discover_fks(db_engine, metadata, filtered_pks, classes=classes_for_fk,
                                           max_fields=max_fields_key, dump_tmp_dir=dump_tmp_fks,
                                           fks_suffix=fks_suffix, precomputed_fks=precomputed_fks,
                                           sampling=sampling, cache_dir=dump_tmp_cache)
+            fk_end_time = datetime.now()
             # json.dump(discovered_fks, open(discovered_fks_fname, mode='wt'), indent=True) FIXME
 
         if resume and exists(filtered_fks_fname):
@@ -858,17 +871,33 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
             json.dump(filtered_fks, open(filtered_fks_fname, mode='wt'), indent=True)
 
         fk_stats, fk_score = compute_fk_stats(all_classes, retrieved_fks, filtered_fks)
+        try:
+            fk_score['time'] = (fk_end_time - fk_start_time).total_seconds()
+        except NameError:
+            pass
         print("\nFK stats:")
         pprint(fk_stats)
         print("\nFK score: {} ".format(fk_score))
 
+        json.dump(fk_stats, open('{}/{}'.format(dump_dir, 'fk_stats.json'), mode='wt'), indent=True)
+        json.dump(fk_score, open('{}/{}'.format(dump_dir, 'fk_score.json'), mode='wt'), indent=True)
+
+        pk_pruned_start_time = datetime.now()
         pruned_pks = prune_pks_with_fks(filtered_pks, filtered_fks)
+        pk_pruned_end_time = datetime.now()
         json.dump(pruned_pks, open('{}/{}'.format(dump_dir, 'pruned_pks.json'), mode='wt'), indent=True)
 
         pk_pruned_stats, pk_pruned_score = compute_pk_stats(all_classes, retrieved_pks, pruned_pks)
+        try:
+            pk_pruned_score['time'] = (pk_pruned_end_time - pk_pruned_start_time).total_seconds()
+        except NameError:
+            pass
         print("\nPK pruned stats:")
         pprint(pk_pruned_stats)
         print("\nPK pruned score: {} ".format(pk_pruned_score))
+
+        json.dump(pk_pruned_stats, open('{}/{}'.format(dump_dir, 'pk_pruned_stats.json'), mode='wt'), indent=True)
+        json.dump(pk_pruned_score, open('{}/{}'.format(dump_dir, 'pk_pruned_score.json'), mode='wt'), indent=True)
 
         return True
     except Exception as e:
