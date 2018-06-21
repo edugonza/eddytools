@@ -81,7 +81,7 @@ We use [SemVer](http://semver.org/) for versioning. For the versions available, 
 
 ## Authors
 
-* **Eduardo Gonzalez Lopez de Murillas** - *Schema discovery - Maintainer* - [edugonza](https://github.com/edugonza)
+* **Eduardo Gonzalez Lopez de Murillas** - *Schema discovery - Case Notion Discovery - Maintainer* - [edugonza](https://github.com/edugonza)
 * **Roy Wolters** - *Initial work on extraction - Event data detection* - [roywolters](https://github.com/roywolters)
 
 See also the list of [contributors](https://github.com/edugonza/eddytools/contributors) who participated in this project.
