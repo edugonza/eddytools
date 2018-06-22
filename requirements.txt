@@ -4,3 +4,6 @@ setuptools
 jellyfish
 tqdm
 numpy
+networkx
+pymssql
+fcache

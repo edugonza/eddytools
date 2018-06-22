@@ -37,7 +37,7 @@ instance with a database is required. Assuming that docker is installed and runn
 the root directory of the project.
 
 ```
-cd data
+cd data/ds2
 sh build-image.sh
 sh run-image.sh
 sh check-health.sh
@@ -81,8 +81,8 @@ We use [SemVer](http://semver.org/) for versioning. For the versions available, 
 
 ## Authors
 
-* **Eduardo Gonzalez Lopez de Murillas** - *Maintainer* - [edugonza](https://github.com/edugonza)
-* **Roy Wolters** - *Initial work* - [roywolters](https://github.com/roywolters)
+* **Eduardo Gonzalez Lopez de Murillas** - *Schema discovery - Case Notion Discovery - Maintainer* - [edugonza](https://github.com/edugonza)
+* **Roy Wolters** - *Initial work on extraction - Event data detection* - [roywolters](https://github.com/roywolters)
 
 See also the list of [contributors](https://github.com/edugonza/eddytools/contributors) who participated in this project.
 
