@@ -78,12 +78,18 @@ def create_mm_engine(openslex_file_path):
 def create_db_engine(dialect=None, host=None, username=None, password=None, port=None,
                            database=None, trusted_conn=False, **params):
     db_url = '{}://'.format(dialect)
-    if not trusted_conn and username and password:
-        db_url += '{username}:{password}@'.format(username=username, password=password)
-    db_url += host
+    if not trusted_conn:
+        if username:
+            db_url += '{username}'.format(username=username)
+            if password:
+                db_url += ':{password}'.format(password=password)
+            db_url += '@'
+    if host:
+        db_url += host
     if port:
         db_url += ':{}'.format(port)
-    db_url += '/{}'.format(database)
+    if database:
+        db_url += '/{}'.format(database)
     engine = create_engine(db_url, pool_pre_ping=True, connect_args=params)
     return engine
 

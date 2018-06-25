@@ -512,7 +512,9 @@ def is_included_server_side(db_engine: Engine, metadata: MetaData, fk_tbfullname
     tb_pk: Table = metadata.tables[pk_tbfullname]
     tb_fk = tb_fk.alias('A')
     tb_pk = tb_pk.alias('B')
-    tb_sample_fk = tb_fk.tablesample(sampling, name='C', seed=text('{}'.format(SEED)))
+    tb_sample_fk = tb_fk.alias('C')
+    if sampling > 0:
+        tb_sample_fk = tb_fk.tablesample(sampling, name='C', seed=text('{}'.format(SEED)))
     fk_fields = [tb_sample_fk.columns[col] for col in fk_field_names]
     pk_fields = [tb_pk.columns[col] for col in pk_field_names]
     query = select(fk_fields).\
@@ -671,8 +673,9 @@ def recall(tp: int, p: int):
         return 1
 
 
-def create_custom_metadata(db_engine: Engine, schemas: list, pks: dict, fks: dict):
-    metadata = ex.get_metadata(db_engine, schemas)
+def create_custom_metadata(db_engine: Engine, schemas: list, pks: dict, fks: dict, metadata: MetaData=None):
+    if not metadata:
+        metadata = ex.get_metadata(db_engine, schemas)
 
     # Discard any existing pk, uk or fk
     t: Table

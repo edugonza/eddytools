@@ -107,10 +107,10 @@ def compute_candidates(mm_engine: Engine, min_rel_threshold=0) -> list:
     candidates_aux = list()
 
     comp: MultiDiGraph
-    for comp in conn_comp:
+    for comp in tqdm(conn_comp):
         # _ Compute every simple path between pairs of nodes
-        for na in comp.nodes:
-            for nb in comp.nodes:
+        for na in tqdm(comp.nodes):
+            for nb in tqdm(comp.nodes):
                 ps = nx.all_simple_paths(g_nodir, na, nb)
                 for p in ps:
                     pairs = nx.utils.pairwise(p)
