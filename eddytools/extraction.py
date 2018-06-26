@@ -152,7 +152,7 @@ rel_map: mapping (class_name, relationship_name) --> relationship_id in the Open
 '''
 
 
-def insert_metadata(mm_conn, mm_meta: MetaData, db_meta: MetaData, dm_name):
+def insert_metadata(mm_conn, mm_meta: MetaData, db_meta: MetaData, dm_name, classes = None):
     class_map = dict()
     attr_map = dict()
     rel_map = dict()
@@ -164,7 +164,10 @@ def insert_metadata(mm_conn, mm_meta: MetaData, db_meta: MetaData, dm_name):
         dm_values = {'name': dm_name}
         res_ins_dm = insert_values(mm_conn, dm_table, dm_values)
         dm_id = res_ins_dm.inserted_primary_key[0]
-        db_classes = [t.fullname for t in db_meta.tables.values()]
+        if not classes:
+            db_classes = [t.fullname for t in db_meta.tables.values()]
+        else:
+            db_classes = classes
         for c in tqdm(db_classes, desc='Inserting Class Metadata'):
             class_table = mm_meta.tables.get('class')
             class_values = {'datamodel_id': dm_id, 'name': c}
@@ -369,7 +372,7 @@ def extract_to_mm(openslex_file_path, connection_params, db_engine=None, schemas
     t1 = time.time()
     mm_conn = mm_engine.connect()
     try:
-        class_map, attr_map, rel_map = insert_metadata(mm_conn, mm_meta, db_meta, dm_name)
+        class_map, attr_map, rel_map = insert_metadata(mm_conn, mm_meta, db_meta, dm_name, classes)
     except Exception as e:
         raise e
     mm_conn.close()
