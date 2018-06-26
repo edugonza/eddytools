@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, ResultProxy, Transaction, Connection
 from sqlalchemy.schema import MetaData, Table
 from sqlalchemy.schema import UniqueConstraint, PrimaryKeyConstraint
-from sqlalchemy.sql import func
+from sqlalchemy.sql import func, select, text
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy import types
 from sqlalchemy import inspect
@@ -260,13 +260,16 @@ def insert_object(mm_conn, obj, source_table, class_name, class_map, attr_map, r
 
 
 # insert all objects of one class into the OpenSLEX mm
-def insert_class_objects(mm_conn: Connection, mm_meta, db_conn, db_meta, class_name, class_map, attr_map, rel_map, obj_v_map):
+def insert_class_objects(mm_conn: Connection, mm_meta, db_engine, db_meta, class_name, class_map, attr_map, rel_map, obj_v_map):
     t1 = time.time()
     trans: Transaction = mm_conn.begin()
     try:
         source_table: Table = db_meta.tables.get(class_name)
-        num_objs = db_conn.execute(source_table.count()).scalar()
-        objs: ResultProxy = db_conn.execution_options(stream_results=True).execute(source_table.select())
+        num_objs = db_engine.execute(source_table.count()).scalar()
+        # objs: ResultProxy = db_conn.execution_options(stream_results=True).execute(source_table.select())
+        q = source_table.select()
+        objs: ResultProxy = db_engine.execute(q)
+        # objs: ResultProxy = db_conn.execute(q)
         for obj in tqdm(objs, total=num_objs, desc='Objects'):
             insert_object(mm_conn, obj, source_table, class_name, class_map, attr_map, rel_map, obj_v_map, mm_meta)
         trans.commit()
@@ -319,13 +322,13 @@ def insert_object_relations(mm_conn, mm_meta, obj, source_table: Table, class_na
 
 
 # insert the relations of all objects of one class into the OpenSLEX mm
-def insert_class_relations(mm_conn, mm_meta, db_conn, db_meta, class_name, rel_map, obj_v_map):
+def insert_class_relations(mm_conn, mm_meta, db_engine, db_meta, class_name, rel_map, obj_v_map):
     t1 = time.time()
     trans = mm_conn.begin()
     try:
         source_table = db_meta.tables.get(class_name)
-        num_objs = db_conn.execute(source_table.count()).scalar()
-        objs = db_conn.execute(source_table.select())
+        num_objs = db_engine.execute(source_table.count()).scalar()
+        objs = db_engine.execute(source_table.select())
         for obj in tqdm(objs, total=num_objs, desc='Relations'):
             insert_object_relations(mm_conn, mm_meta, obj, source_table, class_name, rel_map, obj_v_map)
         trans.commit()
@@ -337,7 +340,7 @@ def insert_class_relations(mm_conn, mm_meta, db_conn, db_meta, class_name, rel_m
 
 
 # insert the objects of all classes of the source db into the OpenSLEX mm
-def insert_objects(mm_conn, mm_meta, db_conn, db_meta, classes, class_map, attr_map, rel_map, cache_dir):
+def insert_objects(mm_conn, mm_meta, db_engine, db_meta, classes, class_map, attr_map, rel_map, cache_dir):
     obj_v_map = SqliteDict(
         '{}/{}-{}'.format(cache_dir, 'obj_v_map_filecache', datetime.now().timestamp()),
         autocommit=True)
@@ -345,13 +348,13 @@ def insert_objects(mm_conn, mm_meta, db_conn, db_meta, classes, class_map, attr_
     with tqdm(classes, desc='Inserting Class Objects') as tpb:
         for class_name in tpb:
             tpb.set_postfix_str(class_name, refresh=True)
-            insert_class_objects(mm_conn, mm_meta, db_conn, db_meta, class_name,
+            insert_class_objects(mm_conn, mm_meta, db_engine, db_meta, class_name,
                                  class_map, attr_map, rel_map, obj_v_map)
 
     with tqdm(classes, desc='Inserting Class Relations') as tpb:
         for class_name in tpb:
             tpb.set_postfix_str(class_name, refresh=True)
-            insert_class_relations(mm_conn, mm_meta, db_conn, db_meta, class_name,
+            insert_class_relations(mm_conn, mm_meta, db_engine, db_meta, class_name,
                                    rel_map, obj_v_map)
 
     return obj_v_map
@@ -388,17 +391,15 @@ def extract_to_mm(openslex_file_path, connection_params, cache_dir, db_engine=No
     # insert objects into the OpenSLEX mm
     t1 = time.time()
     mm_conn = mm_engine.connect()
-    db_conn = db_engine.connect()
     try:
         if classes is None:
             classes = [t.fullname for t in db_meta.tables.values()]
-        obj_v_map = insert_objects(mm_conn, mm_meta, db_conn,
+        obj_v_map = insert_objects(mm_conn, mm_meta, db_engine,
                                    db_meta, classes, class_map,
                                    attr_map, rel_map, cache_dir)
     except Exception as e:
         raise e
     mm_conn.close()
-    db_conn.close()
     mm_engine.dispose()
     db_engine.dispose()
     t2 = time.time()
