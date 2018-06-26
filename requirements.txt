@@ -9,3 +9,4 @@ pymssql
 fcache
 scikit-learn
 scipy
+sqlitedict

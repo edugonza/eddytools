@@ -14,7 +14,9 @@ connection_params = {
     }
 
 schemas = ['public']
-openslex_file_path = 'output/sample.slexmm'
+
+dir = 'output/ds2'
+openslex_file_path = '{}/sample.slexmm'.format(dir)
 
 
 def test_ds2():
@@ -23,7 +25,7 @@ def test_ds2():
     try:
         db_engine = ex.create_db_engine(**connection_params)
         metadata = ex.get_metadata(db_engine, schemas)
-        ex.extract_to_mm(openslex_file_path, connection_params, db_engine=db_engine,
+        ex.extract_to_mm(openslex_file_path, connection_params, dir, db_engine=db_engine,
                          classes=classes, overwrite=True, metadata=metadata)
         assert check_mm(openslex_file_path, connection_params, metadata=metadata)
     except Exception as e:
@@ -76,7 +78,7 @@ def test_custom_metadata_extraction():
                                         discovered_pks, discovered_fks)
 
     db_engine.dispose()
-    ex.extract_to_mm(openslex_file_path, connection_params, overwrite=True, metadata=db_meta)
+    ex.extract_to_mm(openslex_file_path, connection_params, dir, overwrite=True, metadata=db_meta)
     assert check_mm(openslex_file_path, connection_params, metadata=metadata)
 
 

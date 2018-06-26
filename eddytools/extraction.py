@@ -12,6 +12,9 @@ from sqlalchemy.ext.automap import automap_base
 from sqlalchemy import types
 from sqlalchemy import inspect
 from tqdm import tqdm
+from datetime import datetime
+from sqlitedict import SqliteDict
+
 
 # OpenSLEX parameters
 _OPENSLEX_SCRIPT_PATH = 'resources/metamodel.sql'
@@ -230,12 +233,12 @@ def insert_object(mm_conn, obj, source_table, class_name, class_map, attr_map, r
                 notunique = False
                 unique_tuple = tuple(col.name for col in uc)
                 unique_values_tuple = tuple(obj[col] for col in unique_tuple)
-                obj_v_map[(class_name, unique_tuple, unique_values_tuple)] = obj_v_id
+                obj_v_map[str((class_name, unique_tuple, unique_values_tuple))] = obj_v_id
 
         if notunique:
             unique_tuple = tuple(col.name for col in source_table.columns)
             unique_values_tuple = tuple(obj[col] for col in source_table.columns)
-            obj_v_map[(class_name, unique_tuple, unique_values_tuple)] = obj_v_id
+            obj_v_map[str((class_name, unique_tuple, unique_values_tuple))] = obj_v_id
 
         # insert into attribute_value table
         attr_v_table = mm_meta.tables.get('attribute_value')
@@ -285,20 +288,20 @@ def insert_object_relations(mm_conn, mm_meta, obj, source_table: Table, class_na
                 tuple(fk.column.name for fk in fkc.elements),
                 tuple(obj[col] for col in fkc.columns)
             )
-            if target_obj_v_params in obj_v_map.keys():
-                target_obj_v_id = obj_v_map[target_obj_v_params]
+            target_obj_v_id = obj_v_map.get(str(target_obj_v_params), None)
+            if target_obj_v_id:
                 if not source_table.primary_key or not source_table.primary_key.columns:
-                    source_obj_v_id = obj_v_map[(
+                    source_obj_v_id = obj_v_map[str((
                         source_table.fullname,
                         tuple(col.name for col in source_table.columns),
                         tuple(obj[col] for col in source_table.columns)
-                    )]
+                    ))]
                 else:
-                    source_obj_v_id = obj_v_map[(
+                    source_obj_v_id = obj_v_map[str((
                         source_table.fullname,
                         tuple(col.name for col in source_table.primary_key.columns),
                         tuple(obj[col] for col in source_table.primary_key.columns)
-                    )]
+                    ))]
                 rel_value = [{
                     'source_object_version_id': source_obj_v_id,
                     'target_object_version_id': target_obj_v_id,
@@ -333,8 +336,10 @@ def insert_class_relations(mm_conn, mm_meta, db_conn, db_meta, class_name, rel_m
 
 
 # insert the objects of all classes of the source db into the OpenSLEX mm
-def insert_objects(mm_conn, mm_meta, db_conn, db_meta, classes, class_map, attr_map, rel_map):
-    obj_v_map = dict()
+def insert_objects(mm_conn, mm_meta, db_conn, db_meta, classes, class_map, attr_map, rel_map, cache_dir):
+    obj_v_map = SqliteDict(
+        '{}/{}-{}'.format(cache_dir, 'obj_v_map_filecache', datetime.now().timestamp()),
+        autocommit=True)
 
     with tqdm(classes, desc='Inserting Class Objects') as tpb:
         for class_name in tpb:
@@ -351,7 +356,7 @@ def insert_objects(mm_conn, mm_meta, db_conn, db_meta, classes, class_map, attr_
     return obj_v_map
 
 
-def extract_to_mm(openslex_file_path, connection_params, db_engine=None, schemas=None,
+def extract_to_mm(openslex_file_path, connection_params, cache_dir, db_engine=None, schemas=None,
                   overwrite=False, classes=None, metadata=None):
     # connect to the OpenSLEX mm
     try:
@@ -386,7 +391,9 @@ def extract_to_mm(openslex_file_path, connection_params, db_engine=None, schemas
     try:
         if classes is None:
             classes = [t.fullname for t in db_meta.tables.values()]
-        obj_v_map = insert_objects(mm_conn, mm_meta, db_conn, db_meta, classes, class_map, attr_map, rel_map)
+        obj_v_map = insert_objects(mm_conn, mm_meta, db_conn,
+                                   db_meta, classes, class_map,
+                                   attr_map, rel_map, cache_dir)
     except Exception as e:
         raise e
     mm_conn.close()
