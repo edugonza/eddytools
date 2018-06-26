@@ -7,3 +7,5 @@ numpy
 networkx
 pymssql
 fcache
+scikit-learn
+scipy

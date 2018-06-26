@@ -9,18 +9,24 @@ from networkx import MultiDiGraph
 import copy
 from tqdm import tqdm
 import json
+import numpy as np
+from sklearn.preprocessing import minmax_scale
+from scipy.stats import beta
 
 
 class CaseNotion(dict):
 
-    def __init__(self):
-        dict.__init__(self)
-        self['classes_ids'] = list()  # Classes ids
-        self['root_id'] = int()  # Root class id
-        self['children'] = dict()  # Children map
-        self['conv_ids'] = list()  # Converging classes
-        self['idc_ids'] = list()  # Identifying classes
-        self['relationships'] = list()  # Map of relationships between related classes
+    def __init__(self, d=None):
+        if not d:
+            dict.__init__(self)
+            self['classes_ids'] = list()  # Classes ids
+            self['root_id'] = int()  # Root class id
+            self['children'] = dict()  # Children map
+            self['conv_ids'] = list()  # Converging classes
+            self['idc_ids'] = list()  # Identifying classes
+            self['relationships'] = list()  # Map of relationships between related classes
+        else:
+            dict.__init__(self, d)
 
     def get_classes_ids(self) -> list:
         return self['classes_ids']
@@ -32,9 +38,9 @@ class CaseNotion(dict):
         return self['children']
 
     def get_children_of(self, id) -> id:
-        if id not in self['children'].keys():
-            self['children'][id] = []
-        return self['children'][id]
+        if str(id) not in self['children'].keys():
+            self['children'][str(id)] = []
+        return self['children'][str(id)]
 
     def add_child(self, parent, child):
         self.get_children_of(parent).append(child)
@@ -102,17 +108,17 @@ def compute_candidates(mm_engine: Engine, min_rel_threshold=0) -> list:
 
     # Compute case notions
     # Decompose graph in subgraphs, for each subgraph:
-    conn_comp = nx.weakly_connected_component_subgraphs(g)
+    conn_comp = [g.subgraph(c).copy() for c in nx.weakly_connected_components(g)]
 
     candidates_aux = list()
 
     comp: MultiDiGraph
-    for comp in tqdm(conn_comp):
+    for comp in tqdm(conn_comp, desc='Components'):
         # _ Compute every simple path between pairs of nodes
-        for na in tqdm(comp.nodes):
-            for nb in tqdm(comp.nodes):
-                ps = nx.all_simple_paths(g_nodir, na, nb)
-                for p in ps:
+        for na in tqdm(comp.nodes, desc='Node A'):
+            for nb in tqdm(comp.nodes, desc='Node B'):
+                ps = [p for p in nx.all_simple_paths(g_nodir, na, nb)]
+                for p in tqdm(ps, desc='Simple paths'):
                     pairs = nx.utils.pairwise(p)
                     cand = CaseNotion()
                     cand.get_classes_ids().extend(p)
@@ -143,21 +149,22 @@ def compute_candidates(mm_engine: Engine, min_rel_threshold=0) -> list:
                             candidates_aux.append(cn_aux)
 
         # Add single classes
-        for n in g.nodes:
+        for n in tqdm(g.nodes, desc='Single classes'):
             c = CaseNotion()
             c.get_classes_ids().append(n)
+            c.get_identifying_classes().append(n)
             c.set_root_id(n)
             candidates_aux.append(c)
 
-        # _ Remove duplicate paths based on set of edges and nodes
-        for c in candidates_aux:
-            unique = True
-            for c_a in candidates:
-                if c_a == c:
-                    unique = False
-                    break
-            if unique:
-                candidates.append(c)
+    # _ Remove duplicate paths based on set of edges and nodes
+    for c in tqdm(candidates_aux, desc='Removing duplicates'):
+        unique = True
+        for c_a in candidates:
+            if c_a == c:
+                unique = False
+                break
+        if unique:
+            candidates.append(c)
 
     return candidates
 
@@ -384,7 +391,7 @@ def _generate_query_from_case_notion(mm_engine: Engine, case_notion: CaseNotion,
                       col_ov_id.label(name='vid_{}'.format(root_c_id)),
                       col_ev_ai_id.label(name='aiid_{}'.format(root_c_id))]).\
         where(and_(col_ov_obj_id == col_obj_id,
-                   col_etov_ov_id == col_obj_id,
+                   col_etov_ov_id == col_ov_id,
                    col_etov_ev_id == col_ev_id,
                    col_obj_cl_id == root_c_id)), name='JSQ_{}'.format(root_c_id))
 
@@ -497,27 +504,14 @@ def get_stats_mm(mm_engine: Engine, metadata: MetaData=None) -> dict:
         metadata = MetaData(bind=mm_engine)
         metadata.reflect()
 
-    # SELECT  CL.name as class,
-    #         count(distinct OBJ.id) as o,
-    #         count(distinct EV.id) as e,
-    #         count(distinct AI.activity_id) as act
-    # FROM
-    #         class as CL
-    # LEFT OUTER JOIN object as OBJ ON CL.id = OBJ.class_id
-    # LEFT OUTER JOIN object_version as OV ON OBJ.id = OV.object_id
-    # LEFT OUTER JOIN event_to_object_version as ETOV ON OV.id = ETOV.object_version_id
-    # LEFT OUTER JOIN event as EV ON ETOV.event_id = EV.id
-    # LEFT OUTER JOIN activity_instance as AI ON AI.id = EV.activity_instance_id
-    #
-    # GROUP BY CL.name
-
     tb_class: Table = metadata.tables['class']
     tb_object: Table = metadata.tables['object']
     tb_version: Table = metadata.tables['object_version']
     tb_etov: Table = metadata.tables['event_to_object_version']
     tb_event: Table = metadata.tables['event']
     tb_ai: Table = metadata.tables['activity_instance']
-    query = select([tb_class.columns['name'].label('class'),
+    query = select([tb_class.columns['id'].label('class'),
+                    tb_class.columns['name'].label('class_name'),
                     func.count(distinct(tb_object.columns['id'])).label('o'),
                     func.count(distinct(tb_event.columns['id'])).label('e'),
                     func.count(distinct(tb_ai.columns['activity_id'])).label('act')]).\
@@ -532,12 +526,756 @@ def get_stats_mm(mm_engine: Engine, metadata: MetaData=None) -> dict:
                          isouter=True).
                     join(tb_ai, tb_ai.columns['id'] == tb_event.columns['activity_instance_id'],
                          isouter=True)).\
-        group_by(tb_class.columns['name'])
+        group_by(tb_class.columns['id'])
 
     res: ResultProxy = mm_engine.execute(query)
 
     for r in res:
         row = {k: r[k] for k in r.keys()}
-        stats[r['class']] = row
+        stats[str(r['class'])] = row
+
+    for c_str in stats.keys():
+        c = int(c_str)
+        stats[c_str]['o_w_ev'] = _num_obj_of_class_with_event(mm_engine, c, metadata)
+        stats[c_str]['act_o'] = _sum_unique_act_per_obj_for_class(mm_engine, c, metadata)
+        stats[c_str]['min_act_o'] = _min_unique_act_per_obj_for_class(mm_engine, c, metadata)
+        stats[c_str]['max_act_o'] = _max_unique_act_per_obj_for_class(mm_engine, c, metadata)
+        stats[c_str]['ev_o'] = _sum_ev_per_obj_for_class(mm_engine, c, metadata)
+        stats[c_str]['max_ev_o'] = _max_ev_per_obj_for_class(mm_engine, c, metadata)
+        stats[c_str]['min_ev_o'] = _min_ev_per_obj_for_class(mm_engine, c, metadata)
+        stats[c_str]['act'] = _num_unique_act_per_class(mm_engine, c, metadata)
+        stats[c_str]['o'] = _num_obj_of_class(mm_engine, c, metadata)
+        stats[c_str]['e'] = _num_ev_per_class(mm_engine, c, metadata)
 
     return stats
+
+
+def score_log(wsp, wlod, wae, sp, lod, ae):
+    return (wsp * sp) + (wae * ae) + (wlod * lod)
+
+
+def compute_lod_log(mm_engine: Engine, log_id: int, metadata: MetaData, support: int = None):
+    if not support:
+        support = compute_support_log(mm_engine, log_id, metadata)
+
+    tb_ctl: Table = metadata.tables['case_to_log']
+    col_ctl_case_id: Column = tb_ctl.columns['case_id']
+    col_ctl_log_id: Column = tb_ctl.columns['log_id']
+    tb_case: Table = metadata.tables['case']
+    col_case_id: Column = tb_case.columns['id']
+    tb_aitc: Table = metadata.tables['activity_instance_to_case']
+    col_aitc_c_id: Column = tb_aitc.columns['case_id']
+    col_aitc_ai_id: Column = tb_aitc.columns['activity_instance_id']
+    tb_ai: Table = metadata.tables['activity_instance']
+    col_ai_id: Column = tb_ai.columns['id']
+    col_ai_act_id: Column = tb_ai.columns['activity_id']
+
+    q = select([func.sum(column('A'))]).select_from(
+        select([func.count(col_ai_act_id.distinct()).label('A')]).where(and_(col_aitc_ai_id == col_ai_id,
+                                                                             col_aitc_c_id == col_case_id,
+                                                                             col_case_id == col_ctl_case_id,
+                                                                             col_ctl_log_id == log_id)).group_by(
+            col_case_id))
+
+    count = mm_engine.execute(q).scalar()
+
+    if support > 0:
+        lod = float(count) / float(support)
+    else:
+        lod = 0.0
+
+    return lod
+
+
+def compute_ae_log(mm_engine: Engine, log_id: int, metadata: MetaData, support: int = None) -> float:
+
+    if not support:
+        support = compute_support_log(mm_engine, log_id, metadata)
+
+    tb_ctl: Table = metadata.tables['case_to_log']
+    col_ctl_case_id: Column = tb_ctl.columns['case_id']
+    col_ctl_log_id: Column = tb_ctl.columns['log_id']
+    tb_case: Table = metadata.tables['case']
+    col_case_id: Column = tb_case.columns['id']
+    tb_aitc: Table = metadata.tables['activity_instance_to_case']
+    col_aitc_c_id: Column = tb_aitc.columns['case_id']
+    col_aitc_ai_id: Column = tb_aitc.columns['activity_instance_id']
+    tb_ai: Table = metadata.tables['activity_instance']
+    col_ai_id: Column = tb_ai.columns['id']
+    tb_ev: Table = metadata.tables['event']
+    col_ev_id: Column = tb_ev.columns['id']
+    col_ev_ai_id: Column = tb_ev.columns['activity_instance_id']
+
+    q = select([col_ev_id]).where(and_(col_ev_ai_id == col_ai_id,
+                                       col_aitc_ai_id == col_ai_id,
+                                       col_aitc_c_id == col_case_id,
+                                       col_case_id == col_ctl_case_id,
+                                       col_ctl_log_id == log_id)).count()
+
+    count = mm_engine.execute(q).scalar()
+
+    if support > 0:
+        ae = float(count) / float(support)
+    else:
+        ae = 0.0
+
+    return ae
+
+
+def compute_support_log(mm_engine: Engine, log_id: int, metadata: MetaData) -> int:
+    tb_ctl: Table = metadata.tables['case_to_log']
+    tb_case: Table = metadata.tables['case']
+    tb_aitc: Table = metadata.tables['activity_instance_to_case']
+    tb_ai: Table = metadata.tables['activity_instance']
+    tb_ev: Table = metadata.tables['event']
+    col_ctl_case_id: Column = tb_ctl.columns['case_id']
+    col_ctl_log_id: Column = tb_ctl.columns['log_id']
+    col_case_id: Column = tb_case.columns['id']
+    col_aitc_case_id: Column = tb_aitc.columns['case_id']
+    col_aitc_ai_id: Column = tb_aitc.columns['activity_instance_id']
+    col_ai_id: Column = tb_ai.columns['id']
+    col_ev_ai_id: Column = tb_ev.columns['activity_instance_id']
+
+    q = select([col_ctl_case_id]).where(and_(
+        col_ctl_log_id == log_id,
+        col_ctl_case_id == col_case_id,
+        col_case_id == col_aitc_case_id,
+        col_aitc_ai_id == col_ai_id,
+        col_ai_id == col_ev_ai_id)).distinct().count()
+
+    count = mm_engine.execute(q).scalar()
+
+    return count
+
+
+def compute_lb_support_cn(mm_engine: Engine, c: CaseNotion, metadata: MetaData, class_stats: dict = None) -> int:
+    o_root = _num_obj_of_class_with_event(mm_engine,
+                                          c.get_root_id(),
+                                          metadata,
+                                          class_stats)
+
+    return o_root
+
+
+def compute_ub_support_cn(mm_engine: Engine, c: CaseNotion, metadata: MetaData, class_stats: dict = None) -> int:
+    o_root = _num_obj_of_class_with_event(mm_engine,
+                                          c.get_root_id(),
+                                          metadata,
+                                          class_stats)
+
+    ub_sp = o_root
+    for c_id in c.get_classes_ids():
+        if c_id != c.get_root_id():
+            o_c = _num_obj_of_class(mm_engine, c_id, metadata, class_stats)
+            ub_sp = ub_sp * (o_c + 1)
+
+    return ub_sp
+
+
+def compute_lb_lod_cn(mm_engine: Engine, c: CaseNotion, metadata: MetaData, class_stats: dict = None) -> int:
+
+    sp_ub = compute_ub_support_cn(mm_engine, c, metadata, class_stats)
+
+    o_root = _num_obj_of_class_with_event(mm_engine,
+                                          c.get_root_id(),
+                                          metadata, class_stats)
+
+    act_o_root = _sum_unique_act_per_obj_for_class(mm_engine, c.get_root_id(),
+                                                   metadata, class_stats)
+
+    min_act_o_root = _min_unique_act_per_obj_for_class(mm_engine, c.get_root_id(),
+                                                       metadata, class_stats)
+
+    if sp_ub > 0:
+        lod_lb = (act_o_root + ((sp_ub - o_root) * min_act_o_root)) / sp_ub
+    else:
+        lod_lb = 0
+
+    return lod_lb
+
+
+def compute_ub_lod_cn(mm_engine: Engine, c: CaseNotion, metadata: MetaData, class_stats: dict = None) -> int:
+
+    sum_a = 0
+    for c_id in c.get_identifying_classes():
+        sum_a = sum_a + _max_unique_act_per_obj_for_class(mm_engine, c_id,
+                                                          metadata, class_stats)
+
+    sum_b = 0
+    for c_id in c.get_converging_classes():
+        sum_b = sum_b + _num_unique_act_per_class(mm_engine, c_id,
+                                                  metadata, class_stats)
+
+    lod_ub = sum_a + sum_b
+
+    return lod_ub
+
+
+def compute_lb_ae_cn(mm_engine: Engine, c: CaseNotion, metadata: MetaData, class_stats: dict = None) -> int:
+
+    sp_ub = compute_ub_support_cn(mm_engine, c, metadata, class_stats)
+
+    o_root = _num_obj_of_class_with_event(mm_engine,
+                                          c.get_root_id(),
+                                          metadata, class_stats)
+
+    e_o_root = _sum_ev_per_obj_for_class(mm_engine, c.get_root_id(),
+                                         metadata, class_stats)
+
+    min_e_o_root = _min_ev_per_obj_for_class(mm_engine, c.get_root_id(),
+                                             metadata, class_stats)
+
+    if sp_ub > 0:
+        ae_lb = (e_o_root + ((sp_ub - o_root) * min_e_o_root)) / sp_ub
+    else:
+        ae_lb = 0
+
+    return ae_lb
+
+
+def compute_ub_ae_cn(mm_engine: Engine, c: CaseNotion, metadata: MetaData, class_stats: dict = None) -> int:
+
+    sum_a = 0
+    for c_id in c.get_identifying_classes():
+        sum_a = sum_a + _max_ev_per_obj_for_class(mm_engine, c_id,
+                                                          metadata, class_stats)
+
+    sum_b = 0
+    for c_id in c.get_converging_classes():
+        sum_b = sum_b + _num_ev_per_class(mm_engine, c_id,
+                                                  metadata, class_stats)
+
+    ae_ub = sum_a + sum_b
+
+    return ae_ub
+
+
+def _num_obj_of_class_with_event(mm_engine: Engine, class_id: int,
+                                 metadata: MetaData, class_stats: dict = None) -> int:
+
+    if class_stats:
+        return class_stats[str(class_id)]['o_w_ev']
+
+    tb_obj: Table = metadata.tables['object']
+    tb_ov: Table = metadata.tables['object_version']
+    tb_etov: Table = metadata.tables['event_to_object_version']
+    tb_ev: Table = metadata.tables['event']
+    col_ov_obj_id: Column = tb_ov.columns['object_id']
+    col_ov_id: Column = tb_ov.columns['id']
+    col_etov_ov_id: Column = tb_etov.columns['object_version_id']
+    col_etov_ev_id: Column = tb_etov.columns['event_id']
+    col_ev_id: Column = tb_ev.columns['id']
+    col_obj_class_id: Column = tb_obj.columns['class_id']
+    col_obj_id: Column = tb_obj.columns['id']
+
+    q = select([col_obj_id]).where(and_(col_obj_class_id == class_id,
+                                        col_ov_obj_id == col_obj_id,
+                                        col_etov_ov_id == col_ov_id,
+                                        col_ev_id == col_etov_ev_id)). \
+        distinct().count()
+
+    count = mm_engine.execute(q).scalar()
+
+    if not count:
+        count = 0
+
+    return count
+
+
+def _num_obj_of_class(mm_engine: Engine, class_id: int, metadata: MetaData,
+                      class_stats: dict = None) -> int:
+
+    if class_stats:
+        return class_stats[str(class_id)]['o']
+
+    tb_obj: Table = metadata.tables['object']
+    col_obj_class_id: Column = tb_obj.columns['class_id']
+    col_obj_id: Column = tb_obj.columns['id']
+
+    q = select([col_obj_id]).where(col_obj_class_id == class_id).count()
+
+    count = mm_engine.execute(q).scalar()
+
+    if not count:
+        count = 0
+
+    return count
+
+
+def _num_unique_act_per_class(mm_engine: Engine, class_id: int,
+                              metadata: MetaData,
+                              class_stats: dict = None) -> int:
+
+    if class_stats:
+        return class_stats[str(class_id)]['act']
+
+    tb_ai: Table = metadata.tables['activity_instance']
+    tb_ev: Table = metadata.tables['event']
+    tb_etov: Table = metadata.tables['event_to_object_version']
+    tb_ov: Table = metadata.tables['object_version']
+    tb_obj: Table = metadata.tables['object']
+    col_obj_class_id: Column = tb_obj.columns['class_id']
+    col_obj_id: Column = tb_obj.columns['id']
+    col_ai_act_id: Column = tb_ai.columns['activity_id']
+    col_ev_id: Column = tb_ev.columns['id']
+    col_ev_ai_id: Column = tb_ev.columns['activity_instance_id']
+    col_ai_id: Column = tb_ai.columns['id']
+    col_ov_id: Column = tb_ov.columns['id']
+    col_ov_obj_id: Column = tb_ov.columns['object_id']
+    col_etov_ev_id: Column = tb_etov.columns['event_id']
+    col_etov_ov_id: Column = tb_etov.columns['object_version_id']
+
+    q = select([func.count(col_ai_act_id.distinct())]).where(and_(
+        col_ev_ai_id == col_ai_id,
+        col_etov_ev_id == col_ev_id,
+        col_etov_ov_id == col_ov_id,
+        col_ov_obj_id == col_obj_id,
+        col_obj_class_id == class_id))
+
+    count = mm_engine.execute(q).scalar()
+
+    if not count:
+        count = 0
+
+    return count
+
+
+def _num_ev_per_class(mm_engine: Engine, class_id: int,
+                              metadata: MetaData,
+                              class_stats: dict = None) -> int:
+
+    if class_stats:
+        return class_stats[str(class_id)]['e']
+
+    tb_ev: Table = metadata.tables['event']
+    tb_etov: Table = metadata.tables['event_to_object_version']
+    tb_ov: Table = metadata.tables['object_version']
+    tb_obj: Table = metadata.tables['object']
+    col_obj_class_id: Column = tb_obj.columns['class_id']
+    col_obj_id: Column = tb_obj.columns['id']
+    col_ev_id: Column = tb_ev.columns['id']
+    col_ov_id: Column = tb_ov.columns['id']
+    col_ov_obj_id: Column = tb_ov.columns['object_id']
+    col_etov_ev_id: Column = tb_etov.columns['event_id']
+    col_etov_ov_id: Column = tb_etov.columns['object_version_id']
+
+    q = select([func.count(col_ev_id.distinct())]).where(and_(
+        col_etov_ev_id == col_ev_id,
+        col_etov_ov_id == col_ov_id,
+        col_ov_obj_id == col_obj_id,
+        col_obj_class_id == class_id))
+
+    count = mm_engine.execute(q).scalar()
+
+    if not count:
+        count = 0
+
+    return count
+
+
+def _min_unique_act_per_obj_for_class(mm_engine: Engine, class_id: int,
+                                      metadata: MetaData,
+                                      class_stats: dict = None) -> int:
+
+    if class_stats:
+        return class_stats[str(class_id)]['min_act_o']
+
+    tb_ai: Table = metadata.tables['activity_instance']
+    tb_ev: Table = metadata.tables['event']
+    tb_etov: Table = metadata.tables['event_to_object_version']
+    tb_ov: Table = metadata.tables['object_version']
+    tb_obj: Table = metadata.tables['object']
+    col_obj_class_id: Column = tb_obj.columns['class_id']
+    col_obj_id: Column = tb_obj.columns['id']
+    col_ai_act_id: Column = tb_ai.columns['activity_id']
+    col_ev_id: Column = tb_ev.columns['id']
+    col_ev_ai_id: Column = tb_ev.columns['activity_instance_id']
+    col_ai_id: Column = tb_ai.columns['id']
+    col_ov_id: Column = tb_ov.columns['id']
+    col_ov_obj_id: Column = tb_ov.columns['object_id']
+    col_etov_ev_id: Column = tb_etov.columns['event_id']
+    col_etov_ov_id: Column = tb_etov.columns['object_version_id']
+
+    q = select([func.min(column('A'))]).select_from(
+        select([func.count(col_ai_act_id.distinct()).label('A')]).where(and_(
+            col_ev_ai_id == col_ai_id,
+            col_etov_ev_id == col_ev_id,
+            col_etov_ov_id == col_ov_id,
+            col_ov_obj_id == col_obj_id,
+            col_obj_class_id == class_id)).group_by(col_obj_id))
+
+    count = mm_engine.execute(q).scalar()
+
+    if not count:
+        count = 0
+
+    return count
+
+
+def _max_unique_act_per_obj_for_class(mm_engine: Engine, class_id: int,
+                                      metadata: MetaData,
+                                      class_stats: dict = None) -> int:
+
+    if class_stats:
+        return class_stats[str(class_id)]['max_act_o']
+
+    tb_ai: Table = metadata.tables['activity_instance']
+    tb_ev: Table = metadata.tables['event']
+    tb_etov: Table = metadata.tables['event_to_object_version']
+    tb_ov: Table = metadata.tables['object_version']
+    tb_obj: Table = metadata.tables['object']
+    col_obj_class_id: Column = tb_obj.columns['class_id']
+    col_obj_id: Column = tb_obj.columns['id']
+    col_ai_act_id: Column = tb_ai.columns['activity_id']
+    col_ev_id: Column = tb_ev.columns['id']
+    col_ev_ai_id: Column = tb_ev.columns['activity_instance_id']
+    col_ai_id: Column = tb_ai.columns['id']
+    col_ov_id: Column = tb_ov.columns['id']
+    col_ov_obj_id: Column = tb_ov.columns['object_id']
+    col_etov_ev_id: Column = tb_etov.columns['event_id']
+    col_etov_ov_id: Column = tb_etov.columns['object_version_id']
+
+    q = select([func.max(column('A'))]).select_from(
+        select([func.count(col_ai_act_id.distinct()).label('A')]).where(and_(
+            col_ev_ai_id == col_ai_id,
+            col_etov_ev_id == col_ev_id,
+            col_etov_ov_id == col_ov_id,
+            col_ov_obj_id == col_obj_id,
+            col_obj_class_id == class_id)).group_by(col_obj_id))
+
+    count = mm_engine.execute(q).scalar()
+
+    if not count:
+        count = 0
+
+    return count
+
+
+def _sum_unique_act_per_obj_for_class(mm_engine: Engine, class_id: int,
+                                      metadata: MetaData,
+                                      class_stats: dict = None) -> int:
+
+    if class_stats:
+        return class_stats[str(class_id)]['act_o']
+
+    tb_ai: Table = metadata.tables['activity_instance']
+    tb_ev: Table = metadata.tables['event']
+    tb_etov: Table = metadata.tables['event_to_object_version']
+    tb_ov: Table = metadata.tables['object_version']
+    tb_obj: Table = metadata.tables['object']
+    col_obj_class_id: Column = tb_obj.columns['class_id']
+    col_obj_id: Column = tb_obj.columns['id']
+    col_ai_act_id: Column = tb_ai.columns['activity_id']
+    col_ev_id: Column = tb_ev.columns['id']
+    col_ev_ai_id: Column = tb_ev.columns['activity_instance_id']
+    col_ai_id: Column = tb_ai.columns['id']
+    col_ov_id: Column = tb_ov.columns['id']
+    col_ov_obj_id: Column = tb_ov.columns['object_id']
+    col_etov_ev_id: Column = tb_etov.columns['event_id']
+    col_etov_ov_id: Column = tb_etov.columns['object_version_id']
+
+    q = select([func.sum(column('A'))]).select_from(
+        select([func.count(col_ai_act_id.distinct()).label('A')]).where(and_(
+            col_ev_ai_id == col_ai_id,
+            col_etov_ev_id == col_ev_id,
+            col_etov_ov_id == col_ov_id,
+            col_ov_obj_id == col_obj_id,
+            col_obj_class_id == class_id)).group_by(col_obj_id))
+
+    count = mm_engine.execute(q).scalar()
+
+    if not count:
+        count = 0
+
+    return count
+
+
+def _min_ev_per_obj_for_class(mm_engine: Engine, class_id: int,
+                              metadata: MetaData,
+                              class_stats: dict = None) -> int:
+
+    if class_stats:
+        return class_stats[str(class_id)]['min_ev_o']
+
+    tb_ev: Table = metadata.tables['event']
+    tb_etov: Table = metadata.tables['event_to_object_version']
+    tb_ov: Table = metadata.tables['object_version']
+    tb_obj: Table = metadata.tables['object']
+    col_obj_class_id: Column = tb_obj.columns['class_id']
+    col_obj_id: Column = tb_obj.columns['id']
+    col_ev_id: Column = tb_ev.columns['id']
+    col_ov_id: Column = tb_ov.columns['id']
+    col_ov_obj_id: Column = tb_ov.columns['object_id']
+    col_etov_ev_id: Column = tb_etov.columns['event_id']
+    col_etov_ov_id: Column = tb_etov.columns['object_version_id']
+
+    q = select([func.min(column('A'))]).select_from(
+        select([func.count(col_ev_id.distinct()).label('A')]).where(and_(
+            col_etov_ev_id == col_ev_id,
+            col_etov_ov_id == col_ov_id,
+            col_ov_obj_id == col_obj_id,
+            col_obj_class_id == class_id)).group_by(col_obj_id))
+
+    count = mm_engine.execute(q).scalar()
+
+    if not count:
+        count = 0
+
+    return count
+
+
+def _max_ev_per_obj_for_class(mm_engine: Engine, class_id: int,
+                              metadata: MetaData,
+                              class_stats: dict = None) -> int:
+
+    if class_stats:
+        return class_stats[str(class_id)]['max_ev_o']
+
+    tb_ev: Table = metadata.tables['event']
+    tb_etov: Table = metadata.tables['event_to_object_version']
+    tb_ov: Table = metadata.tables['object_version']
+    tb_obj: Table = metadata.tables['object']
+    col_obj_class_id: Column = tb_obj.columns['class_id']
+    col_obj_id: Column = tb_obj.columns['id']
+    col_ev_id: Column = tb_ev.columns['id']
+    col_ov_id: Column = tb_ov.columns['id']
+    col_ov_obj_id: Column = tb_ov.columns['object_id']
+    col_etov_ev_id: Column = tb_etov.columns['event_id']
+    col_etov_ov_id: Column = tb_etov.columns['object_version_id']
+
+    q = select([func.max(column('A'))]).select_from(
+        select([func.count(col_ev_id.distinct()).label('A')]).where(and_(
+            col_etov_ev_id == col_ev_id,
+            col_etov_ov_id == col_ov_id,
+            col_ov_obj_id == col_obj_id,
+            col_obj_class_id == class_id)).group_by(col_obj_id))
+
+    count = mm_engine.execute(q).scalar()
+
+    if not count:
+        count = 0
+
+    return count
+
+
+def _sum_ev_per_obj_for_class(mm_engine: Engine, class_id: int,
+                              metadata: MetaData,
+                              class_stats: dict = None) -> int:
+
+    if class_stats:
+        return class_stats[str(class_id)]['ev_o']
+
+    tb_ev: Table = metadata.tables['event']
+    tb_etov: Table = metadata.tables['event_to_object_version']
+    tb_ov: Table = metadata.tables['object_version']
+    tb_obj: Table = metadata.tables['object']
+    col_obj_class_id: Column = tb_obj.columns['class_id']
+    col_obj_id: Column = tb_obj.columns['id']
+    col_ev_id: Column = tb_ev.columns['id']
+    col_ov_id: Column = tb_ov.columns['id']
+    col_ov_obj_id: Column = tb_ov.columns['object_id']
+    col_etov_ev_id: Column = tb_etov.columns['event_id']
+    col_etov_ov_id: Column = tb_etov.columns['object_version_id']
+
+    q = select([func.sum(column('A'))]).select_from(
+        select([func.count(col_ev_id.distinct()).label('A')]).where(and_(
+            col_etov_ev_id == col_ev_id,
+            col_etov_ov_id == col_ov_id,
+            col_ov_obj_id == col_obj_id,
+            col_obj_class_id == class_id)).group_by(col_obj_id))
+
+    count = mm_engine.execute(q).scalar()
+
+    if not count:
+        count = 0
+
+    return count
+
+
+def compute_prediction_from_bounds(bounds: dict, w_sp_lb: float, w_lod_lb: float, w_ae_lb: float):
+    w_sp_ub = 1 - w_sp_lb
+    w_lod_ub = 1 - w_lod_lb
+    w_ae_ub = 1 - w_ae_lb
+
+    sp_lb = bounds['sp_lb']
+    lod_lb = bounds['lod_lb']
+    ae_lb = bounds['ae_lb']
+    sp_ub = bounds['sp_ub']
+    lod_ub = bounds['lod_ub']
+    ae_ub = bounds['ae_ub']
+
+    sp_pred = np.add(np.multiply(sp_lb, w_sp_lb), np.multiply(sp_ub, w_sp_ub))
+    lod_pred = np.add(np.multiply(lod_lb, w_lod_lb), np.multiply(lod_ub, w_lod_ub))
+    ae_pred = np.add(np.multiply(ae_lb, w_ae_lb), np.multiply(ae_ub, w_ae_ub))
+
+    predictions = {
+        'sp': sp_pred,
+        'lod': lod_pred,
+        'ae': ae_pred,
+    }
+
+    return predictions
+
+
+def compute_ranking(metrics: dict, mode_sp: float, max_sp: int, min_sp: int,
+                    mode_lod: float, max_lod: float, min_lod: float,
+                    mode_ae: float, max_ae: float, min_ae: float,
+                    w_sp: float=0.33, w_lod: float=0.33, w_ae: float=0.33) -> list:
+
+    sp = metrics['sp']
+    lod = metrics['lod']
+    ae = metrics['ae']
+
+    sp_a, sp_b, max_sp_glb, min_sp_glb = _estimate_params(
+        mode_range=mode_sp,
+        max_range=max_sp,
+        min_range=min_sp,
+        values=sp)
+
+    lod_a, lod_b, max_lod_glb, min_lod_glb = _estimate_params(
+        mode_range=mode_lod,
+        max_range=max_lod,
+        min_range=min_lod,
+        values=lod)
+
+    ae_a, ae_b, max_ae_glb, min_ae_glb = _estimate_params(
+        mode_range=mode_ae,
+        max_range=max_ae,
+        min_range=min_ae,
+        values=ae)
+
+    sp_scld = scale_minmax(sp, max_sp_glb, min_sp_glb)
+    lod_scld = scale_minmax(lod, max_lod_glb, min_lod_glb)
+    ae_scld = scale_minmax(ae, max_ae_glb, min_ae_glb)
+
+    max_val_beta_sp = beta.pdf(beta_mode(sp_a, sp_b), sp_a, sp_b)
+    max_val_beta_lod = beta.pdf(beta_mode(lod_a, lod_b), lod_a, lod_b)
+    max_val_beta_ae = beta.pdf(beta_mode(ae_a, ae_b), ae_a, ae_b)
+
+    sp_score = np.divide(beta.pdf(sp_scld, sp_a, sp_b), max_val_beta_sp)
+    lod_score = np.divide(beta.pdf(lod_scld, lod_a, lod_b), max_val_beta_lod)
+    ae_score = np.divide(beta.pdf(ae_scld, ae_a, ae_b), max_val_beta_ae)
+
+    scores = np.add(np.multiply(sp_score, w_sp),
+                    np.multiply(lod_score, w_lod),
+                    np.multiply(ae_score, w_ae))
+
+    ranking = np.argsort(-scores)
+
+    return ranking
+
+
+def scale_minmax(values: list, max_v: float, min_v: float):
+
+    u = np.subtract(values, min_v)
+    b = max_v - min_v
+
+    scld = np.divide(u, b)
+
+    return scld
+
+
+def beta_mode(a, b):
+
+    if a > 1 and b > 1:
+        mode = (a - 1) / (a + b - 2)
+    elif a == b == 1:
+        mode = 0
+    elif a == 1 and b > 1:
+        mode = 0
+    elif b == 1 and a > 1:
+        mode = 1
+    else:
+        raise Exception('Cannot compute mode for (a, b) = ({}, {})'.format(a, b))
+
+    return mode
+
+
+def compute_bounds_of_candidates(candidates: list, mm_engine: Engine=None,
+                                 metadata: MetaData=None,
+                                 class_stats: dict = None) -> dict:
+
+    bounds = {'sp_lb': [],
+              'sp_ub': [],
+              'lod_lb': [],
+              'lod_ub': [],
+              'ae_lb': [],
+              'ae_ub': []}
+
+    for cand in candidates:
+        sp_lb = compute_lb_support_cn(mm_engine, cand, metadata, class_stats)
+        sp_ub = compute_ub_support_cn(mm_engine, cand, metadata, class_stats)
+        lod_lb = compute_lb_lod_cn(mm_engine, cand, metadata, class_stats)
+        lod_ub = compute_ub_lod_cn(mm_engine, cand, metadata, class_stats)
+        ae_lb = compute_lb_ae_cn(mm_engine, cand, metadata, class_stats)
+        ae_ub = compute_ub_ae_cn(mm_engine, cand, metadata, class_stats)
+
+        bounds['sp_lb'].append(sp_lb)
+        bounds['sp_ub'].append(sp_ub)
+        bounds['lod_lb'].append(lod_lb)
+        bounds['lod_ub'].append(lod_ub)
+        bounds['ae_lb'].append(ae_lb)
+        bounds['ae_ub'].append(ae_ub)
+
+    return bounds
+
+
+def _estimate_params(mode_range: float, max_range: float, min_range: float, values: list) -> tuple:
+
+    max_value = max(values)
+    min_value = min(values)
+
+    if max_range is None:
+        max_range = max_value
+
+    if min_range is None:
+        min_range = min_value
+
+    if mode_range is None:
+        mode_range = min_range + ((max_range - min_range) / 2)
+
+    max_global = max([max_range, max_value])
+    min_global = min([min_range, min_value])
+
+    scaled_min = scale_minmax([min_range], max_global, min_global)[0]
+    scaled_max = scale_minmax([max_range], max_global, min_global)[0]
+    scaled_mode = scale_minmax([mode_range], max_global, min_global)[0]
+
+    a, b = _estimate_a_b(scaled_mode, scaled_min, scaled_max)
+
+    return a, b, max_global, min_global
+
+
+def _estimate_a_from_b(b: float, mode: float):
+    a = (mode*(b-2)+1)/(1-mode)
+    return a
+
+
+def _estimate_b_from_a(a: float, mode: float):
+    b = (a*(mode-1)/(-mode))+2-(1/mode)
+    return b
+
+
+def _estimate_a_b(mode: float, min_val: float, max_val: float):
+
+    if (1-mode) > (mode-0):  # Positively skewed: a = 2, b > 2
+        if max_val == 0:
+            max_val = 0.01
+        b = 2 / float(max_val)
+        a = _estimate_a_from_b(b, mode)
+
+    elif (1-mode) < (mode-0):  # Negatively skewed: b = 2, a > 2
+        if min_val == 1:
+            min_val = 0.99
+        a = 2 / (1 - float(min_val))
+        b = _estimate_b_from_a(a, mode)
+
+    else:  # symmetric: a = b
+        a = 2
+        b = _estimate_b_from_a(a, mode)
+        a = b
+
+    a = max([a, 1])
+    b = max([b, 1])
+
+    return a, b
