@@ -4,7 +4,7 @@ from pkg_resources import resource_stream
 
 # SQLAlchemy imports
 from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine, ResultProxy
+from sqlalchemy.engine import Engine, ResultProxy, Transaction, Connection
 from sqlalchemy.schema import MetaData, Table
 from sqlalchemy.schema import UniqueConstraint, PrimaryKeyConstraint
 from sqlalchemy.sql import func
@@ -260,16 +260,17 @@ def insert_object(mm_conn, obj, source_table, class_name, class_map, attr_map, r
 
 
 # insert all objects of one class into the OpenSLEX mm
-def insert_class_objects(mm_conn, mm_meta, db_conn, db_meta, class_name, class_map, attr_map, rel_map, obj_v_map):
+def insert_class_objects(mm_conn: Connection, mm_meta, db_conn, db_meta, class_name, class_map, attr_map, rel_map, obj_v_map):
     t1 = time.time()
-    trans = mm_conn.begin()
+    trans: Transaction = mm_conn.begin()
     try:
         source_table: Table = db_meta.tables.get(class_name)
         num_objs = db_conn.execute(source_table.count()).scalar()
-        objs: ResultProxy = db_conn.execute(source_table.select())
+        objs: ResultProxy = db_conn.execution_options(stream_results=True).execute(source_table.select())
         for obj in tqdm(objs, total=num_objs, desc='Objects'):
             insert_object(mm_conn, obj, source_table, class_name, class_map, attr_map, rel_map, obj_v_map, mm_meta)
         trans.commit()
+        objs.close()
     except:
         trans.rollback()
         raise
