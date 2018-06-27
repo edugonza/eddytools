@@ -286,12 +286,20 @@ def insert_class_objects(mm_conn: Connection, mm_meta, db_engine, db_meta, class
         cursor = conn.cursor()
         cursor.execute(str(q.compile(dialect=db_engine.dialect, compile_kwargs={"literal_binds": True})))
 
+        i = 0
         obj = _get_dict_from_cursor(cursor)
         with tqdm(desc='Objects', total=num_objs) as tpb:
             while obj:
                 insert_object(mm_conn, obj, source_table, class_name, class_map, attr_map, rel_map, obj_v_map, mm_meta)
                 obj = _get_dict_from_cursor(cursor)
                 tpb.update(1)
+                i += 1
+                if i > 1000:
+                    i = 0
+                    try:
+                        obj_v_map.sync()
+                    except:
+                        pass
 
         trans.commit()
     except:
@@ -358,12 +366,20 @@ def insert_class_relations(mm_conn, mm_meta, db_engine, db_meta, class_name, rel
         cursor = conn.cursor()
         cursor.execute(str(q.compile(dialect=db_engine.dialect, compile_kwargs={"literal_binds": True})))
 
+        i = 0
         obj = _get_dict_from_cursor(cursor)
         with tqdm(desc='Relations', total=num_objs) as tpb:
             while obj:
                 insert_object_relations(mm_conn, mm_meta, obj, source_table, class_name, rel_map, obj_v_map)
                 obj = _get_dict_from_cursor(cursor)
                 tpb.update(1)
+                i += 1
+                if i > 1000:
+                    i = 0
+                    try:
+                        obj_v_map.sync()
+                    except:
+                        pass
 
         trans.commit()
 
@@ -382,12 +398,10 @@ def insert_class_relations(mm_conn, mm_meta, db_engine, db_meta, class_name, rel
 
 # insert the objects of all classes of the source db into the OpenSLEX mm
 def insert_objects(mm_conn, mm_meta, db_engine, db_meta, classes, class_map, attr_map, rel_map, cache_dir):
-    # obj_v_map = SqliteDict(
-    #     '{}/{}-{}'.format(cache_dir, 'obj_v_map_filecache', datetime.now().timestamp()),
-    #     autocommit=True)
-    obj_v_map = shelve.open(
+    obj_v_map = SqliteDict(
+        flag='n',
         filename='{}/{}-{}'.format(cache_dir, 'obj_v_map_filecache', datetime.now().timestamp()),
-        flag='n')
+        autocommit=True)
 
     with tqdm(classes, desc='Inserting Class Objects') as tpb:
         for class_name in tpb:
