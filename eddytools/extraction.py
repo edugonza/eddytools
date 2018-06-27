@@ -237,7 +237,7 @@ def insert_object(mm_conn, obj, source_table, class_name, class_map, attr_map, r
 
         if notunique:
             unique_tuple = tuple(col.name for col in source_table.columns)
-            unique_values_tuple = tuple(obj[col] for col in source_table.columns)
+            unique_values_tuple = tuple(obj[col] for col in unique_tuple)
             obj_v_map[str((class_name, unique_tuple, unique_values_tuple))] = obj_v_id
 
         # insert into attribute_value table
@@ -259,6 +259,19 @@ def insert_object(mm_conn, obj, source_table, class_name, class_map, attr_map, r
         raise
 
 
+def _get_dict_from_cursor(cursor):
+    tup = cursor.fetchone()
+
+    obj = None
+
+    if tup:
+        obj = dict()
+        for i, c in enumerate(cursor.description):
+            obj[c[0]] = tup[i]
+
+    return obj
+
+
 # insert all objects of one class into the OpenSLEX mm
 def insert_class_objects(mm_conn: Connection, mm_meta, db_engine, db_meta, class_name, class_map, attr_map, rel_map, obj_v_map):
     t1 = time.time()
@@ -266,14 +279,20 @@ def insert_class_objects(mm_conn: Connection, mm_meta, db_engine, db_meta, class
     try:
         source_table: Table = db_meta.tables.get(class_name)
         num_objs = db_engine.execute(source_table.count()).scalar()
-        # objs: ResultProxy = db_conn.execution_options(stream_results=True).execute(source_table.select())
+
         q = source_table.select()
-        objs: ResultProxy = db_engine.execute(q)
-        # objs: ResultProxy = db_conn.execute(q)
-        for obj in tqdm(objs, total=num_objs, desc='Objects'):
-            insert_object(mm_conn, obj, source_table, class_name, class_map, attr_map, rel_map, obj_v_map, mm_meta)
+        conn = db_engine.raw_connection()
+        cursor = conn.cursor()
+        cursor.execute(str(q.compile(dialect=db_engine.dialect, compile_kwargs={"literal_binds": True})))
+
+        obj = _get_dict_from_cursor(cursor)
+        with tqdm(desc='Objects', total=num_objs) as tpb:
+            while obj:
+                insert_object(mm_conn, obj, source_table, class_name, class_map, attr_map, rel_map, obj_v_map, mm_meta)
+                obj = _get_dict_from_cursor(cursor)
+                tpb.update(1)
+
         trans.commit()
-        objs.close()
     except:
         trans.rollback()
         raise
@@ -287,24 +306,27 @@ def insert_object_relations(mm_conn, mm_meta, obj, source_table: Table, class_na
     try:
         rel_table = mm_meta.tables.get('relation')
         for fkc in source_table.foreign_key_constraints:
+            tuple_cols = tuple(fk.column.name for fk in fkc.elements)
             target_obj_v_params = (
                 fkc.referred_table.fullname,
-                tuple(fk.column.name for fk in fkc.elements),
-                tuple(obj[col] for col in fkc.columns)
+                tuple_cols,
+                tuple(obj[col] for col in tuple_cols)
             )
             target_obj_v_id = obj_v_map.get(str(target_obj_v_params), None)
             if target_obj_v_id:
                 if not source_table.primary_key or not source_table.primary_key.columns:
+                    tuple_cols = tuple(col.name for col in source_table.columns)
                     source_obj_v_id = obj_v_map[str((
                         source_table.fullname,
-                        tuple(col.name for col in source_table.columns),
-                        tuple(obj[col] for col in source_table.columns)
+                        tuple_cols,
+                        tuple(obj[col] for col in tuple_cols)
                     ))]
                 else:
+                    tuple_cols = tuple(col.name for col in source_table.primary_key.columns)
                     source_obj_v_id = obj_v_map[str((
                         source_table.fullname,
-                        tuple(col.name for col in source_table.primary_key.columns),
-                        tuple(obj[col] for col in source_table.primary_key.columns)
+                        tuple_cols,
+                        tuple(obj[col] for col in tuple_cols)
                     ))]
                 rel_value = [{
                     'source_object_version_id': source_obj_v_id,
@@ -326,12 +348,29 @@ def insert_class_relations(mm_conn, mm_meta, db_engine, db_meta, class_name, rel
     t1 = time.time()
     trans = mm_conn.begin()
     try:
-        source_table = db_meta.tables.get(class_name)
+        source_table: Table = db_meta.tables.get(class_name)
         num_objs = db_engine.execute(source_table.count()).scalar()
-        objs = db_engine.execute(source_table.select())
-        for obj in tqdm(objs, total=num_objs, desc='Relations'):
-            insert_object_relations(mm_conn, mm_meta, obj, source_table, class_name, rel_map, obj_v_map)
+
+        q = source_table.select()
+        conn = db_engine.raw_connection()
+        cursor = conn.cursor()
+        cursor.execute(str(q.compile(dialect=db_engine.dialect, compile_kwargs={"literal_binds": True})))
+
+        obj = _get_dict_from_cursor(cursor)
+        with tqdm(desc='Relations', total=num_objs) as tpb:
+            while obj:
+                insert_object_relations(mm_conn, mm_meta, obj, source_table, class_name, rel_map, obj_v_map)
+                obj = _get_dict_from_cursor(cursor)
+                tpb.update(1)
+
         trans.commit()
+
+        # source_table = db_meta.tables.get(class_name)
+        # num_objs = db_engine.execute(source_table.count()).scalar()
+        # objs = db_engine.execute(source_table.select())
+        # for obj in tqdm(objs, total=num_objs, desc='Relations'):
+        #     insert_object_relations(mm_conn, mm_meta, obj, source_table, class_name, rel_map, obj_v_map)
+        # trans.commit()
     except:
         trans.rollback()
         raise
