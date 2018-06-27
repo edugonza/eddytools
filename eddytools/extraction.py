@@ -14,6 +14,7 @@ from sqlalchemy import inspect
 from tqdm import tqdm
 from datetime import datetime
 from sqlitedict import SqliteDict
+import shelve
 
 
 # OpenSLEX parameters
@@ -306,10 +307,11 @@ def insert_object_relations(mm_conn, mm_meta, obj, source_table: Table, class_na
     try:
         rel_table = mm_meta.tables.get('relation')
         for fkc in source_table.foreign_key_constraints:
-            tuple_cols = tuple(fk.column.name for fk in fkc.elements)
+            tuple_foreign_cols = tuple(fk.column.name for fk in fkc.elements)
+            tuple_cols = tuple(col.name for col in fkc.columns)
             target_obj_v_params = (
                 fkc.referred_table.fullname,
-                tuple_cols,
+                tuple_foreign_cols,
                 tuple(obj[col] for col in tuple_cols)
             )
             target_obj_v_id = obj_v_map.get(str(target_obj_v_params), None)
@@ -380,23 +382,31 @@ def insert_class_relations(mm_conn, mm_meta, db_engine, db_meta, class_name, rel
 
 # insert the objects of all classes of the source db into the OpenSLEX mm
 def insert_objects(mm_conn, mm_meta, db_engine, db_meta, classes, class_map, attr_map, rel_map, cache_dir):
-    obj_v_map = SqliteDict(
-        '{}/{}-{}'.format(cache_dir, 'obj_v_map_filecache', datetime.now().timestamp()),
-        autocommit=True)
+    # obj_v_map = SqliteDict(
+    #     '{}/{}-{}'.format(cache_dir, 'obj_v_map_filecache', datetime.now().timestamp()),
+    #     autocommit=True)
+    obj_v_map = shelve.open(
+        filename='{}/{}-{}'.format(cache_dir, 'obj_v_map_filecache', datetime.now().timestamp()),
+        flag='n')
 
     with tqdm(classes, desc='Inserting Class Objects') as tpb:
         for class_name in tpb:
             tpb.set_postfix_str(class_name, refresh=True)
             insert_class_objects(mm_conn, mm_meta, db_engine, db_meta, class_name,
                                  class_map, attr_map, rel_map, obj_v_map)
+            obj_v_map.sync()
 
     with tqdm(classes, desc='Inserting Class Relations') as tpb:
         for class_name in tpb:
             tpb.set_postfix_str(class_name, refresh=True)
             insert_class_relations(mm_conn, mm_meta, db_engine, db_meta, class_name,
                                    rel_map, obj_v_map)
+            obj_v_map.sync()
 
-    return obj_v_map
+    try:
+        obj_v_map.close()
+    except:
+        pass
 
 
 def extract_to_mm(openslex_file_path, connection_params, cache_dir, db_engine=None, schemas=None,
@@ -433,9 +443,9 @@ def extract_to_mm(openslex_file_path, connection_params, cache_dir, db_engine=No
     try:
         if classes is None:
             classes = [t.fullname for t in db_meta.tables.values()]
-        obj_v_map = insert_objects(mm_conn, mm_meta, db_engine,
-                                   db_meta, classes, class_map,
-                                   attr_map, rel_map, cache_dir)
+        insert_objects(mm_conn, mm_meta, db_engine,
+                       db_meta, classes, class_map,
+                       attr_map, rel_map, cache_dir)
     except Exception as e:
         raise e
     mm_conn.close()
