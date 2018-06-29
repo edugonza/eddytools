@@ -14,7 +14,6 @@ from sqlalchemy import inspect
 from tqdm import tqdm
 from datetime import datetime
 from sqlitedict import SqliteDict
-import shelve
 
 
 # OpenSLEX parameters
@@ -208,7 +207,8 @@ def insert_metadata(mm_conn, mm_meta: MetaData, db_meta: MetaData, dm_name, clas
 
 
 # insert object, object version, object attribute values into the OpenSLEX mm for one object in the source db
-def insert_object(mm_conn, obj, source_table, class_name, class_map, attr_map, rel_map, obj_v_map, mm_meta):
+def insert_object(mm_conn, obj, source_table, class_name, class_map, attr_map,
+                  rel_map, obj_v_map, obj_hash_map, mm_meta):
     trans = mm_conn.begin()
     try:
         # insert into object table
@@ -234,12 +234,14 @@ def insert_object(mm_conn, obj, source_table, class_name, class_map, attr_map, r
                 notunique = False
                 unique_tuple = tuple(col.name for col in uc)
                 unique_values_tuple = tuple(obj[col] for col in unique_tuple)
-                obj_v_map[str((class_name, unique_tuple, unique_values_tuple))] = obj_v_id
+                v_tuple = (class_name, unique_tuple, unique_values_tuple)
+                _set_v_id_for_values(obj_v_map, obj_hash_map, v_tuple, obj_v_id)
 
         if notunique:
             unique_tuple = tuple(col.name for col in source_table.columns)
             unique_values_tuple = tuple(obj[col] for col in unique_tuple)
-            obj_v_map[str((class_name, unique_tuple, unique_values_tuple))] = obj_v_id
+            v_tuple = (class_name, unique_tuple, unique_values_tuple)
+            _set_v_id_for_values(obj_v_map, obj_hash_map, v_tuple, obj_v_id)
 
         # insert into attribute_value table
         attr_v_table = mm_meta.tables.get('attribute_value')
@@ -274,7 +276,8 @@ def _get_dict_from_cursor(cursor):
 
 
 # insert all objects of one class into the OpenSLEX mm
-def insert_class_objects(mm_conn: Connection, mm_meta, db_engine, db_meta, class_name, class_map, attr_map, rel_map, obj_v_map):
+def insert_class_objects(mm_conn: Connection, mm_meta, db_engine, db_meta, class_name,
+                         class_map, attr_map, rel_map, obj_v_map, obj_hash_map):
     t1 = time.time()
     trans: Transaction = mm_conn.begin()
     try:
@@ -290,7 +293,8 @@ def insert_class_objects(mm_conn: Connection, mm_meta, db_engine, db_meta, class
         obj = _get_dict_from_cursor(cursor)
         with tqdm(desc='Objects', total=num_objs) as tpb:
             while obj:
-                insert_object(mm_conn, obj, source_table, class_name, class_map, attr_map, rel_map, obj_v_map, mm_meta)
+                insert_object(mm_conn, obj, source_table, class_name, class_map,
+                              attr_map, rel_map, obj_v_map, obj_hash_map, mm_meta)
                 obj = _get_dict_from_cursor(cursor)
                 tpb.update(1)
                 i += 1
@@ -298,6 +302,7 @@ def insert_class_objects(mm_conn: Connection, mm_meta, db_engine, db_meta, class
                     i = 0
                     try:
                         obj_v_map.sync()
+                        obj_hash_map.sync()
                     except:
                         pass
 
@@ -309,8 +314,40 @@ def insert_class_objects(mm_conn: Connection, mm_meta, db_engine, db_meta, class
     time_diff = t2 - t1
 
 
+def _set_v_id_for_values(v_map, hash_map, values, id):
+    v_str = str(values)
+    values.__hash__()
+    v_hash = v_str.__hash__()
+
+    idlist = v_map.get(v_hash, [])
+    idlist.append(id)
+    v_map[v_hash] = idlist
+
+    vlist = hash_map.get(v_hash, [])
+    vlist.append(values)
+    hash_map[v_hash] = vlist
+
+
+def _get_v_id_for_values(v_map, hash_map, values):
+    id = None
+
+    v_str = str(values)
+    v_hash = v_str.__hash__()
+
+    vlist = hash_map.get(v_hash, [])
+
+    for i, v in enumerate(vlist):
+        if v == values:
+            idlist = v_map.get(v_hash)
+            id = idlist[i]
+            break
+
+    return id
+
+
 # insert the relations of one object into the OpenSLEX mm
-def insert_object_relations(mm_conn, mm_meta, obj, source_table: Table, class_name, rel_map, obj_v_map):
+def insert_object_relations(mm_conn, mm_meta, obj, source_table: Table, class_name,
+                            rel_map, obj_v_map, obj_hash_map):
     trans = mm_conn.begin()
     try:
         rel_table = mm_meta.tables.get('relation')
@@ -322,22 +359,30 @@ def insert_object_relations(mm_conn, mm_meta, obj, source_table: Table, class_na
                 tuple_foreign_cols,
                 tuple(obj[col] for col in tuple_cols)
             )
-            target_obj_v_id = obj_v_map.get(str(target_obj_v_params), None)
+            target_obj_v_id = _get_v_id_for_values(obj_v_map, obj_hash_map, target_obj_v_params)
             if target_obj_v_id:
                 if not source_table.primary_key or not source_table.primary_key.columns:
                     tuple_cols = tuple(col.name for col in source_table.columns)
-                    source_obj_v_id = obj_v_map[str((
-                        source_table.fullname,
-                        tuple_cols,
-                        tuple(obj[col] for col in tuple_cols)
-                    ))]
+                    source_obj_v_id = _get_v_id_for_values(
+                        obj_v_map, obj_hash_map, (source_table.fullname,
+                                                  tuple_cols,
+                                                  tuple(obj[col] for col in tuple_cols)))
+                    # source_obj_v_id = obj_v_map[str((
+                    #     source_table.fullname,
+                    #     tuple_cols,
+                    #     tuple(obj[col] for col in tuple_cols)
+                    # ))]
                 else:
                     tuple_cols = tuple(col.name for col in source_table.primary_key.columns)
-                    source_obj_v_id = obj_v_map[str((
-                        source_table.fullname,
-                        tuple_cols,
-                        tuple(obj[col] for col in tuple_cols)
-                    ))]
+                    source_obj_v_id = _get_v_id_for_values(
+                        obj_v_map, obj_hash_map, (source_table.fullname,
+                                                  tuple_cols,
+                                                  tuple(obj[col] for col in tuple_cols)))
+                    # source_obj_v_id = obj_v_map[str((
+                    #     source_table.fullname,
+                    #     tuple_cols,
+                    #     tuple(obj[col] for col in tuple_cols)
+                    # ))]
                 rel_value = [{
                     'source_object_version_id': source_obj_v_id,
                     'target_object_version_id': target_obj_v_id,
@@ -354,7 +399,8 @@ def insert_object_relations(mm_conn, mm_meta, obj, source_table: Table, class_na
 
 
 # insert the relations of all objects of one class into the OpenSLEX mm
-def insert_class_relations(mm_conn, mm_meta, db_engine, db_meta, class_name, rel_map, obj_v_map):
+def insert_class_relations(mm_conn, mm_meta, db_engine, db_meta, class_name,
+                           rel_map, obj_v_map, obj_hash_map):
     t1 = time.time()
     trans = mm_conn.begin()
     try:
@@ -370,7 +416,8 @@ def insert_class_relations(mm_conn, mm_meta, db_engine, db_meta, class_name, rel
         obj = _get_dict_from_cursor(cursor)
         with tqdm(desc='Relations', total=num_objs) as tpb:
             while obj:
-                insert_object_relations(mm_conn, mm_meta, obj, source_table, class_name, rel_map, obj_v_map)
+                insert_object_relations(mm_conn, mm_meta, obj, source_table, class_name,
+                                        rel_map, obj_v_map, obj_hash_map)
                 obj = _get_dict_from_cursor(cursor)
                 tpb.update(1)
                 i += 1
@@ -378,6 +425,7 @@ def insert_class_relations(mm_conn, mm_meta, db_engine, db_meta, class_name, rel
                     i = 0
                     try:
                         obj_v_map.sync()
+                        obj_hash_map.sync()
                     except:
                         pass
 
@@ -403,22 +451,30 @@ def insert_objects(mm_conn, mm_meta, db_engine, db_meta, classes, class_map, att
         filename='{}/{}-{}'.format(cache_dir, 'obj_v_map_filecache', datetime.now().timestamp()),
         autocommit=True)
 
+    obj_hash_map = SqliteDict(
+        flag='n',
+        filename='{}/{}-{}'.format(cache_dir, 'obj_hash_map_filecache', datetime.now().timestamp()),
+        autocommit=True)
+
     with tqdm(classes, desc='Inserting Class Objects') as tpb:
         for class_name in tpb:
             tpb.set_postfix_str(class_name, refresh=True)
             insert_class_objects(mm_conn, mm_meta, db_engine, db_meta, class_name,
-                                 class_map, attr_map, rel_map, obj_v_map)
+                                 class_map, attr_map, rel_map, obj_v_map, obj_hash_map)
             obj_v_map.sync()
+            obj_hash_map.sync()
 
     with tqdm(classes, desc='Inserting Class Relations') as tpb:
         for class_name in tpb:
             tpb.set_postfix_str(class_name, refresh=True)
             insert_class_relations(mm_conn, mm_meta, db_engine, db_meta, class_name,
-                                   rel_map, obj_v_map)
+                                   rel_map, obj_v_map, obj_hash_map)
             obj_v_map.sync()
+            obj_hash_map.sync()
 
     try:
         obj_v_map.close()
+        obj_hash_map.close()
     except:
         pass
 
