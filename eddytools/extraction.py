@@ -316,7 +316,6 @@ def insert_class_objects(mm_conn: Connection, mm_meta, db_engine, db_meta, class
 
 def _set_v_id_for_values(v_map, hash_map, values, id):
     v_str = str(values)
-    values.__hash__()
     v_hash = v_str.__hash__()
 
     idlist = v_map.get(v_hash, [])

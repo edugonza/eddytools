@@ -2,7 +2,7 @@ import eddytools.extraction as ex
 import eddytools.schema as es
 import sqlalchemy as sq
 from sqlalchemy.sql.expression import text
-
+import pytest
 
 connection_params = {
         'dialect': 'postgresql',
@@ -68,6 +68,7 @@ def check_mm(openslex_file_path, connection_params, metadata):
     return check
 
 
+@pytest.mark.skip(reason="This test takes too long for travis")
 def test_custom_metadata_extraction():
     db_engine = ex.create_db_engine(**connection_params)
     metadata = ex.get_metadata(db_engine, schemas)
