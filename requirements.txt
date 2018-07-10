@@ -10,3 +10,7 @@ fcache
 scikit-learn
 scipy
 sqlitedict
+pandas
+flask
+frozendict
+pyyaml

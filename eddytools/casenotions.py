@@ -12,6 +12,10 @@ import json
 import numpy as np
 from sklearn.preprocessing import minmax_scale
 from scipy.stats import beta
+from datetime import datetime
+from sqlitedict import SqliteDict
+from frozendict import frozendict
+import yaml
 
 
 class CaseNotion(dict):
@@ -19,16 +23,16 @@ class CaseNotion(dict):
     def __init__(self, d=None):
         if not d:
             dict.__init__(self)
-            self['classes_ids'] = list()  # Classes ids
+            self['classes_ids'] = set()  # Classes ids
             self['root_id'] = int()  # Root class id
             self['children'] = dict()  # Children map
-            self['conv_ids'] = list()  # Converging classes
-            self['idc_ids'] = list()  # Identifying classes
-            self['relationships'] = list()  # Map of relationships between related classes
+            self['conv_ids'] = set()  # Converging classes
+            self['idc_ids'] = set()  # Identifying classes
+            self['relationships'] = set()  # Map of relationships between related classes
         else:
             dict.__init__(self, d)
 
-    def get_classes_ids(self) -> list:
+    def get_classes_ids(self) -> set:
         return self['classes_ids']
 
     def get_root_id(self) -> int:
@@ -37,29 +41,29 @@ class CaseNotion(dict):
     def get_children(self) -> dict:
         return self['children']
 
-    def get_children_of(self, id) -> id:
+    def get_children_of(self, id) -> set:
         if str(id) not in self['children'].keys():
-            self['children'][str(id)] = []
+            self['children'][str(id)] = set()
         return self['children'][str(id)]
 
     def add_child(self, parent, child):
-        self.get_children_of(parent).append(child)
+        self.get_children_of(parent).add(child)
 
-    def get_converging_classes(self) -> list:
+    def get_converging_classes(self) -> set:
         return self['conv_ids']
 
-    def get_identifying_classes(self) -> list:
+    def get_identifying_classes(self) -> set:
         return self['idc_ids']
 
-    def get_relationships(self) -> list:
+    def get_relationships(self) -> set:
         return self['relationships']
 
     def add_relationship(self, source, target, rs_id, rs_name):
-        self.get_relationships().append(
-            {'id': rs_id,
-             'source': source,
-             'target': target,
-             'name': rs_name})
+        self.get_relationships().add(
+            frozendict({'id': rs_id,
+                        'source': source,
+                        'target': target,
+                        'name': rs_name}))
 
     def set_root_id(self, id):
         self['root_id'] = id
@@ -67,9 +71,31 @@ class CaseNotion(dict):
     def copy(self):
         return copy.deepcopy(self)
 
+    def __hash__(self):
+        d = []
+        for k in self.keys():
+            d.append(str(self[k]).__hash__())
+        return str(d).__hash__()
 
-def compute_candidates(mm_engine: Engine, min_rel_threshold=0) -> list:
-    candidates = list()
+
+
+def compute_candidates(mm_engine: Engine, min_rel_threshold=0, max_length_path=5, cache_dir: str='.') -> dict:
+
+    candidates = SqliteDict(
+        flag='n',
+        filename='{}/{}-{}'.format(cache_dir, 'candidates_filecache', datetime.now().timestamp()),
+        autocommit=True)
+    candidates_aux = SqliteDict(
+        flag='n',
+        filename='{}/{}-{}'.format(cache_dir, 'candidates_aux_filecache', datetime.now().timestamp()),
+        autocommit=True,
+        journal_mode="OFF")
+    candidates_hash = SqliteDict(
+        flag='n',
+        filename='{}/{}-{}'.format(cache_dir, 'candidates_hash_filecache', datetime.now().timestamp()),
+        autocommit=False,
+        journal_mode="OFF")
+    # candidates_hash = dict()
 
     metadata = MetaData(bind=mm_engine)
     metadata.reflect()
@@ -92,15 +118,18 @@ def compute_candidates(mm_engine: Engine, min_rel_threshold=0) -> list:
 
     g = nx.MultiDiGraph()
     g_nodir = nx.MultiGraph()
+    g_nomulti = nx.Graph()
     for c in all_classes:
         if c['name'] not in isolated:
             g.add_node(c['id'], **c)
             g_nodir.add_node(c['id'], **c)
+            g_nomulti.add_node(c['id'], **c)
 
     for rs in relationships:
         if rs['rs'] not in rs_to_ignore:
             g.add_edge(rs['source'], rs['target'], key=rs['id'], **rs)
             g_nodir.add_edge(rs['source'], rs['target'], key=rs['id'], **rs)
+            g_nomulti.add_edge(rs['source'], rs['target'])
 
     #import matplotlib.pyplot as plt
     #plt.subplot(121)
@@ -110,19 +139,19 @@ def compute_candidates(mm_engine: Engine, min_rel_threshold=0) -> list:
     # Decompose graph in subgraphs, for each subgraph:
     conn_comp = [g.subgraph(c).copy() for c in nx.weakly_connected_components(g)]
 
-    candidates_aux = list()
+    counter = 0
 
     comp: MultiDiGraph
     for comp in tqdm(conn_comp, desc='Components'):
         # _ Compute every simple path between pairs of nodes
         for na in tqdm(comp.nodes, desc='Node A'):
             for nb in tqdm(comp.nodes, desc='Node B'):
-                ps = [p for p in nx.all_simple_paths(g_nodir, na, nb)]
+                ps = [p for p in nx.all_simple_paths(g_nomulti, na, nb, cutoff=max_length_path)]
                 for p in tqdm(ps, desc='Simple paths'):
                     pairs = nx.utils.pairwise(p)
                     cand = CaseNotion()
-                    cand.get_classes_ids().extend(p)
-                    cand.get_identifying_classes().extend(p)
+                    cand.get_classes_ids().update(p)
+                    cand.get_identifying_classes().update(p)
                     cands = [cand]
                     for pair in pairs:
                         edges = g_nodir.get_edge_data(pair[0], pair[1])
@@ -146,25 +175,54 @@ def compute_candidates(mm_engine: Engine, min_rel_threshold=0) -> list:
                             cn_aux: CaseNotion = cn.copy()
                             cn_aux.set_root_id(r)
                             _build_cn_tree(cn_aux, g)
-                            candidates_aux.append(cn_aux)
+                            candidates_aux[counter] = cn_aux
+                            h = cn_aux.__hash__()
+                            lc = candidates_hash.get(h, [])
+                            lc.append(counter)
+                            candidates_hash[h] = lc
+                            counter = counter + 1
+                            if counter % 1000 == 0:
+                                candidates_aux.sync()
+                                candidates_hash.commit(blocking=True)
+                                candidates_hash.sync()
 
         # Add single classes
         for n in tqdm(g.nodes, desc='Single classes'):
             c = CaseNotion()
-            c.get_classes_ids().append(n)
-            c.get_identifying_classes().append(n)
+            c.get_classes_ids().add(n)
+            c.get_identifying_classes().add(n)
             c.set_root_id(n)
-            candidates_aux.append(c)
+            candidates_aux[counter] = c
+            h = c.__hash__()
+            lc = candidates_hash.get(h, [])
+            lc.append(counter)
+            candidates_hash[h] = lc
+            counter = counter + 1
+            if counter % 1000 == 0:
+                candidates_aux.sync()
+                candidates_hash.commit(blocking=True)
+                candidates_hash.sync()
+
+    candidates_aux.sync()
 
     # _ Remove duplicate paths based on set of edges and nodes
-    for c in tqdm(candidates_aux, desc='Removing duplicates'):
-        unique = True
-        for c_a in candidates:
-            if c_a == c:
-                unique = False
-                break
-        if unique:
-            candidates.append(c)
+    counter_cand = 0
+    for lc in tqdm(candidates_hash.values(), total=len(candidates_hash), desc='Removing duplicates'):
+        for i, c_i in enumerate(lc):
+            c = candidates_aux[c_i]
+            unique = True
+            for c_a_i in lc[i+1:]:
+                c_a = candidates_aux[c_a_i]
+                if c_a == c:
+                    unique = False
+                    break
+            if unique:
+                candidates[counter_cand] = c
+                counter_cand = counter_cand + 1
+                if counter_cand % 1000 == 0:
+                    candidates.sync()
+
+    candidates.sync()
 
     return candidates
 
@@ -278,7 +336,7 @@ def build_log_for_case_notion(mm_engine: Engine, case_notion: CaseNotion, proc_n
 
     q = tb_latv.insert().values(log_attribute_name_id=latn_cn_id,
                                 log_id=log_id,
-                                value=json.dumps(case_notion),
+                                value=yaml.dump(case_notion),
                                 type='STRING')
     conn.execute(q)
 
