@@ -5,6 +5,7 @@ import os
 import shutil
 from pprint import pprint
 
+
 openslex_file_path_orig = 'data/mm/metamodel-sample.slexmm'
 openslex_file_path = 'data/mm/metamodel-sample-modif.slexmm'
 

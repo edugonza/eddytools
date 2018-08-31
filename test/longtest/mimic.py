@@ -1,19 +1,20 @@
-from test import test_disc
+# from test import test_disc
 from eddytools import extraction as ex
 
 
-def test_extraction(connection_params, openslex_file_path, classes=None):
-    ex.extract_to_mm(openslex_file_path, **connection_params,
-                     classes=classes, overwrite=True)
+def test_extraction(connection_params, openslex_file_path, cache_dir, schemas=None, classes=None):
+    ex.extract_to_mm(openslex_file_path, connection_params, cache_dir=cache_dir,
+                     classes=classes, overwrite=True, schemas=schemas)
 
 
-def test_discovery(connection_params, dump_dir):
-    test_disc(connection_params, dump_dir=dump_dir)  # , classes_for_fk=['public.admissions'])
+# def test_discovery(connection_params, dump_dir):
+#     test_disc(connection_params, dump_dir=dump_dir)  # , classes_for_fk=['public.admissions'])
 
 
-def test_extraction_custom_datamodel(connection_params, openslex_file_path, classes=None):
-    meta = None
-    ex.extract_to_mm(openslex_file_path, **connection_params, classes=classes, overwrite=True, metadata=meta)
+# def test_extraction_custom_datamodel(connection_params, openslex_file_path, cache_dir, classes=None):
+#     meta = None
+#     ex.extract_to_mm(openslex_file_path, **connection_params, cache_dir=cache_dir,
+#                      classes=classes, overwrite=True, metadata=meta)
 
 
 if __name__ == '__main__':
@@ -23,20 +24,23 @@ if __name__ == '__main__':
         'username': 'postgres',
         'password': 'postgres',
         'host': 'localhost',
-        'port': '5555',
+        'port': '5558',
         'database': 'mimic',
-        'schema': 'public',
     }
 
-    openslex_file_path = 'data/output/sample-mimic.slexmm'
+    schemas = ['public']
 
-    classes_extract = ['patients', 'admissions', 'microbiologyevents',
-               'd_items']  # use this to specify a subset of the classes
+    dir = 'output/mimic'
 
-    test_extraction(connection_params, openslex_file_path, classes_extract)
+    openslex_file_path = '{}/sample-mimic.slexmm'.format(dir)
 
-    dump_dir = 'data/output/dump-mimic-sample-04'
+    # classes_extract = ['patients', 'admissions', 'microbiologyevents',
+    #            'd_items']  # use this to specify a subset of the classes
 
-    test_discovery(connection_params, dump_dir)
+    test_extraction(connection_params, openslex_file_path, dir, schemas)
 
-    test_extraction_custom_datamodel(connection_params, openslex_file_path, classes_extract)
+    # dump_dir = 'data/output/dump-mimic-sample-04'
+
+    # test_discovery(connection_params, dump_dir)
+
+    # test_extraction_custom_datamodel(connection_params, openslex_file_path, dir, classes_extract)
