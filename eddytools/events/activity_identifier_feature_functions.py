@@ -177,7 +177,7 @@ def not_null_ratio(candidates, feature_values, engine, meta):
         if 'nr_timestamps' not in fv:
             nr_timestamps(candidates, feature_values, engine, meta)
         if fv['nr_timestamps'] == 0:
-            fv['not_null_ratio'] = None
+            fv['not_null_ratio'] = 0  # Originally it was None FIXME
         else:
             fv['not_null_ratio'] = fv['nr_values_where_timestamp'] / fv['nr_timestamps']
 
@@ -209,7 +209,7 @@ def uniqueness_ratio(candidates, feature_values, engine, meta):
         if 'nr_timestamps' not in fv:
             nr_timestamps(candidates, feature_values, engine, meta)
         if fv['nr_timestamps'] == 0:
-            fv['uniqueness_ratio'] = None
+            fv['uniqueness_ratio'] = 0  # Originally it was None FIXME
         else:
             fv['uniqueness_ratio'] = fv['nr_unique_values_where_timestamp'] / fv['nr_timestamps']
 
@@ -452,7 +452,10 @@ def text_length_mean_std_cv(candidates, feature_values, engine, meta):
                 sum_ = length['sum']
                 sum_sq = length['sum_sq']
                 mean = sum_ / n
-                std = sqrt((sum_sq - ((sum_**2) / n)) / (n - 1))
+                if n > 1:  # FIXME otherwise division by zero
+                    std = sqrt((sum_sq - ((sum_**2) / n)) / (n - 1))
+                else:
+                    std = 0
                 cv = std / mean
                 fv['text_length_mean'] = mean
                 fv['text_length_std'] = std

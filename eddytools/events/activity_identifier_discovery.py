@@ -3,6 +3,8 @@ from datetime import datetime
 from sqlalchemy import select, and_, or_
 from sklearn.model_selection import cross_validate, GridSearchCV, StratifiedKFold
 import numpy as np
+import pandas as pd
+from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 
 from .encoding import Encoder, Candidate
 
@@ -49,7 +51,7 @@ class ActivityIdentifierDiscoverer:
                                              activity_identifier_attribute_id=row['aid_attr'],
                                              relationship_id=None))
 
-        q = (select([t_attr_1.c.id.label('ts_attr'), t_rels.c.id.label('rel_id'),t_attr_2.c.id.label('aid_attr')])
+        q = (select([t_attr_1.c.id.label('ts_attr'), t_rels.c.id.label('rel_id'), t_attr_2.c.id.label('aid_attr')])
              .select_from(t_attr_1
                           .join(t_rels, t_attr_1.c.class_id == t_rels.c.source)
                           .join(t_attr_2, t_rels.c.target == t_attr_2.c.class_id))
@@ -64,6 +66,9 @@ class ActivityIdentifierDiscoverer:
         with open(filepath, 'r') as f:
             candidates = json.load(f)
         self.candidates = [Candidate(*c) for c in candidates]
+
+    def save_candidates(self, filepath):
+        json.dump(self.candidates, fp=open(filepath, mode='wt'))
 
     def compute_features(self, features, filter=True, verbose=0):
         if self.feature_values:
@@ -84,12 +89,15 @@ class ActivityIdentifierDiscoverer:
         if features:
             self.filter_features(features)
 
+    def save_features(self, filepath):
+        json.dump(self.feature_values, fp=open(filepath, mode='wt'))
+
     def filter_features(self, features):
         feature_names = [f.__name__ for f in features]
         feature_values = self.feature_values
         feature_values_filtered = []
         for fv in feature_values:
-            feature_values_filtered.append({name: fv[name] for name in feature_names})
+            feature_values_filtered.append({name: fv[name] for name in feature_names if name in fv.keys()})
         self.feature_values = feature_values_filtered
 
     def load_y_true(self, y_true_path):
@@ -100,16 +108,49 @@ class ActivityIdentifierDiscoverer:
         y_true = np.asarray(y_true)
         self.y_true = y_true
 
-    def evaluate(self, names, classifiers, n_splits=5, verbose=0):
+    def features_as_df(self, values, encoders):
+
+        df: pd.DataFrame = pd.DataFrame(values)
+
+        df2: pd.DataFrame = None
+
+        for c, t in zip(df, df.dtypes):
+            if t == 'object':
+                if c in encoders:
+                    encoderL = encoders[c][0]
+                    encoderO = encoders[c][1]
+                else:
+                    encoderL = LabelEncoder()
+                    encoderO = OneHotEncoder()
+                    encoders[c] = [encoderL, encoderO]
+                vd = [v if v else 'NaN' for v in df[c].as_matrix()]
+                vl = encoderL.fit_transform(vd).reshape(-1, 1)
+                vd = encoderO.fit_transform(vl).todense()
+                col_names = ['{}-{}'.format(c, i) for i in range(0, vd.shape[1])]
+                dfaux = pd.DataFrame(vd,
+                                     index=range(0, vd.shape[0]),
+                                     columns=col_names)
+                if df2 is None:
+                    df2 = pd.concat([df2, dfaux], axis=1, ignore_index=True)
+                else:
+                    df2 = dfaux
+            else:
+                df2 = pd.concat([df2, df[c]], axis=1, ignore_index=True)
+
+        return df2.as_matrix().astype(np.float)
+
+    def evaluate(self, names, classifiers, encoders, n_splits=5, verbose=0):
 
         eval_results = list()
 
         cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=1)
         scoring = ['precision', 'recall', 'f1']
 
+        ft_df = self.features_as_df(self.feature_values, encoders)
+
         for name, clf in zip(names, classifiers):
             print(str(datetime.now()) + ': evaluating ' + name)
-            eval_results.append(cross_validate(clf, self.feature_values, self.y_true, scoring=scoring, cv=cv,
+            eval_results.append(cross_validate(clf, ft_df, self.y_true, scoring=scoring, cv=cv,
                                                 verbose=verbose))
 
         for name, res in zip(names, eval_results):
@@ -120,6 +161,26 @@ class ActivityIdentifierDiscoverer:
             print()
 
         return eval_results
+
+    def train_classifier(self, classifier, encoders):
+
+        ft_df = self.features_as_df(self.feature_values, encoders)
+        classifier.fit(ft_df, self.y_true)
+
+        return classifier
+
+    def predict(self, classifier, encoders):
+
+        ft_df = self.features_as_df(self.feature_values, encoders)
+        prediction = classifier.predict(ft_df)
+
+        positive = []
+
+        for p, c in zip(prediction, self.candidates):
+            if p:
+                positive.append(c)
+
+        return positive
 
     def tune_params(self, classifiers, parameters, scoring = 'f1', n_splits=5, verbose=0):
 

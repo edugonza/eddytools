@@ -1,687 +1,687 @@
 [
     {
-        "timestamp_attribute": ["admissions", "admittime"],
+        "timestamp_attribute": ["public.admissions", "admittime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["admissions", "admittime"],
-        "activity_identifier_attribute": ["admissions", "admission_type"],
+        "timestamp_attribute": ["public.admissions", "admittime"],
+        "activity_identifier_attribute": ["public.admissions", "admission_type"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["admissions", "admittime"],
-        "activity_identifier_attribute": ["admissions", "admission_location"],
+        "timestamp_attribute": ["public.admissions", "admittime"],
+        "activity_identifier_attribute": ["public.admissions", "admission_location"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["admissions", "dischtime"],
+        "timestamp_attribute": ["public.admissions", "dischtime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["admissions", "dischtime"],
-        "activity_identifier_attribute": ["admissions", "discharge_location"],
+        "timestamp_attribute": ["public.admissions", "dischtime"],
+        "activity_identifier_attribute": ["public.admissions", "discharge_location"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["admissions", "deathtime"],
+        "timestamp_attribute": ["public.admissions", "deathtime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["admissions", "edregtime"],
+        "timestamp_attribute": ["public.admissions", "edregtime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["admissions", "edouttime"],
+        "timestamp_attribute": ["public.admissions", "edouttime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "createtime"],
+        "timestamp_attribute": ["public.callout", "createtime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "createtime"],
-        "activity_identifier_attribute": ["callout", "submit_wardid"],
+        "timestamp_attribute": ["public.callout", "createtime"],
+        "activity_identifier_attribute": ["public.callout", "submit_wardid"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "createtime"],
-        "activity_identifier_attribute": ["callout", "curr_careunit"],
+        "timestamp_attribute": ["public.callout", "createtime"],
+        "activity_identifier_attribute": ["public.callout", "curr_careunit"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "createtime"],
-        "activity_identifier_attribute": ["callout", "submit_careunit"],
+        "timestamp_attribute": ["public.callout", "createtime"],
+        "activity_identifier_attribute": ["public.callout", "submit_careunit"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "createtime"],
-        "activity_identifier_attribute": ["callout", "callout_service"],
+        "timestamp_attribute": ["public.callout", "createtime"],
+        "activity_identifier_attribute": ["public.callout", "callout_service"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "updatetime"],
+        "timestamp_attribute": ["public.callout", "updatetime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "updatetime"],
-        "activity_identifier_attribute": ["callout", "submit_wardid"],
+        "timestamp_attribute": ["public.callout", "updatetime"],
+        "activity_identifier_attribute": ["public.callout", "submit_wardid"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "updatetime"],
-        "activity_identifier_attribute": ["callout", "curr_careunit"],
+        "timestamp_attribute": ["public.callout", "updatetime"],
+        "activity_identifier_attribute": ["public.callout", "curr_careunit"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "updatetime"],
-        "activity_identifier_attribute": ["callout", "submit_careunit"],
+        "timestamp_attribute": ["public.callout", "updatetime"],
+        "activity_identifier_attribute": ["public.callout", "submit_careunit"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "updatetime"],
-        "activity_identifier_attribute": ["callout", "callout_service"],
+        "timestamp_attribute": ["public.callout", "updatetime"],
+        "activity_identifier_attribute": ["public.callout", "callout_service"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "acknowledgetime"],
+        "timestamp_attribute": ["public.callout", "acknowledgetime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "acknowledgetime"],
-        "activity_identifier_attribute": ["callout", "submit_wardid"],
+        "timestamp_attribute": ["public.callout", "acknowledgetime"],
+        "activity_identifier_attribute": ["public.callout", "submit_wardid"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "acknowledgetime"],
-        "activity_identifier_attribute": ["callout", "curr_careunit"],
+        "timestamp_attribute": ["public.callout", "acknowledgetime"],
+        "activity_identifier_attribute": ["public.callout", "curr_careunit"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "acknowledgetime"],
-        "activity_identifier_attribute": ["callout", "submit_careunit"],
+        "timestamp_attribute": ["public.callout", "acknowledgetime"],
+        "activity_identifier_attribute": ["public.callout", "submit_careunit"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "acknowledgetime"],
-        "activity_identifier_attribute": ["callout", "callout_service"],
+        "timestamp_attribute": ["public.callout", "acknowledgetime"],
+        "activity_identifier_attribute": ["public.callout", "callout_service"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "outcometime"],
+        "timestamp_attribute": ["public.callout", "outcometime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "outcometime"],
-        "activity_identifier_attribute": ["callout", "submit_wardid"],
+        "timestamp_attribute": ["public.callout", "outcometime"],
+        "activity_identifier_attribute": ["public.callout", "submit_wardid"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "outcometime"],
-        "activity_identifier_attribute": ["callout", "curr_careunit"],
+        "timestamp_attribute": ["public.callout", "outcometime"],
+        "activity_identifier_attribute": ["public.callout", "curr_careunit"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "outcometime"],
-        "activity_identifier_attribute": ["callout", "submit_careunit"],
+        "timestamp_attribute": ["public.callout", "outcometime"],
+        "activity_identifier_attribute": ["public.callout", "submit_careunit"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "outcometime"],
-        "activity_identifier_attribute": ["callout", "callout_service"],
+        "timestamp_attribute": ["public.callout", "outcometime"],
+        "activity_identifier_attribute": ["public.callout", "callout_service"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "outcometime"],
-        "activity_identifier_attribute": ["callout", "callout_outcome"],
+        "timestamp_attribute": ["public.callout", "outcometime"],
+        "activity_identifier_attribute": ["public.callout", "callout_outcome"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "outcometime"],
-        "activity_identifier_attribute": ["callout", "discharge_wardid"],
+        "timestamp_attribute": ["public.callout", "outcometime"],
+        "activity_identifier_attribute": ["public.callout", "discharge_wardid"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "firstreservationtime"],
+        "timestamp_attribute": ["public.callout", "firstreservationtime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "firstreservationtime"],
-        "activity_identifier_attribute": ["callout", "submit_wardid"],
+        "timestamp_attribute": ["public.callout", "firstreservationtime"],
+        "activity_identifier_attribute": ["public.callout", "submit_wardid"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "firstreservationtime"],
-        "activity_identifier_attribute": ["callout", "curr_careunit"],
+        "timestamp_attribute": ["public.callout", "firstreservationtime"],
+        "activity_identifier_attribute": ["public.callout", "curr_careunit"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "firstreservationtime"],
-        "activity_identifier_attribute": ["callout", "submit_careunit"],
+        "timestamp_attribute": ["public.callout", "firstreservationtime"],
+        "activity_identifier_attribute": ["public.callout", "submit_careunit"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "firstreservationtime"],
-        "activity_identifier_attribute": ["callout", "callout_service"],
+        "timestamp_attribute": ["public.callout", "firstreservationtime"],
+        "activity_identifier_attribute": ["public.callout", "callout_service"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "currentreservationtime"],
+        "timestamp_attribute": ["public.callout", "currentreservationtime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "currentreservationtime"],
-        "activity_identifier_attribute": ["callout", "submit_wardid"],
+        "timestamp_attribute": ["public.callout", "currentreservationtime"],
+        "activity_identifier_attribute": ["public.callout", "submit_wardid"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "currentreservationtime"],
-        "activity_identifier_attribute": ["callout", "curr_careunit"],
+        "timestamp_attribute": ["public.callout", "currentreservationtime"],
+        "activity_identifier_attribute": ["public.callout", "curr_careunit"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "currentreservationtime"],
-        "activity_identifier_attribute": ["callout", "submit_careunit"],
+        "timestamp_attribute": ["public.callout", "currentreservationtime"],
+        "activity_identifier_attribute": ["public.callout", "submit_careunit"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["callout", "currentreservationtime"],
-        "activity_identifier_attribute": ["callout", "callout_service"],
+        "timestamp_attribute": ["public.callout", "currentreservationtime"],
+        "activity_identifier_attribute": ["public.callout", "callout_service"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["chartevents", "charttime"],
+        "timestamp_attribute": ["public.chartevents", "charttime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["chartevents", "charttime"],
-        "activity_identifier_attribute": ["d_items", "label"],
+        "timestamp_attribute": ["public.chartevents", "charttime"],
+        "activity_identifier_attribute": ["public.d_items", "label"],
         "relationship": "chartevents_fk_itemid"
     },
     {
-        "timestamp_attribute": ["chartevents", "storetime"],
+        "timestamp_attribute": ["public.chartevents", "storetime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["chartevents", "storetime"],
-        "activity_identifier_attribute": ["d_items", "label"],
+        "timestamp_attribute": ["public.chartevents", "storetime"],
+        "activity_identifier_attribute": ["public.d_items", "label"],
         "relationship": "chartevents_fk_itemid"
     },
     {
-        "timestamp_attribute": ["cptevents", "chartdate"],
+        "timestamp_attribute": ["public.cptevents", "chartdate"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["cptevents", "chartdate"],
-        "activity_identifier_attribute": ["cptevents", "description"],
+        "timestamp_attribute": ["public.cptevents", "chartdate"],
+        "activity_identifier_attribute": ["public.cptevents", "description"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["datetimeevents", "charttime"],
+        "timestamp_attribute": ["public.datetimeevents", "charttime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["datetimeevents", "charttime"],
-        "activity_identifier_attribute": ["d_items", "label"],
+        "timestamp_attribute": ["public.datetimeevents", "charttime"],
+        "activity_identifier_attribute": ["public.d_items", "label"],
         "relationship": "datetimeevents_fk_itemid"
     },
     {
-        "timestamp_attribute": ["datetimeevents", "storetime"],
+        "timestamp_attribute": ["public.datetimeevents", "storetime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["datetimeevents", "storetime"],
-        "activity_identifier_attribute": ["d_items", "label"],
+        "timestamp_attribute": ["public.datetimeevents", "storetime"],
+        "activity_identifier_attribute": ["public.d_items", "label"],
         "relationship": "datetimeevents_fk_itemid"
     },
     {
-        "timestamp_attribute": ["datetimeevents", "value"],
+        "timestamp_attribute": ["public.datetimeevents", "value"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["datetimeevents", "value"],
-        "activity_identifier_attribute": ["d_items", "label"],
+        "timestamp_attribute": ["public.datetimeevents", "value"],
+        "activity_identifier_attribute": ["public.d_items", "label"],
         "relationship": "datetimeevents_fk_itemid"
     },
     {
-        "timestamp_attribute": ["icustays", "intime"],
+        "timestamp_attribute": ["public.icustays", "intime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["icustays", "intime"],
-        "activity_identifier_attribute": ["icustays", "first_careunit"],
+        "timestamp_attribute": ["public.icustays", "intime"],
+        "activity_identifier_attribute": ["public.icustays", "first_careunit"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["icustays", "intime"],
-        "activity_identifier_attribute": ["icustays", "first_wardid"],
+        "timestamp_attribute": ["public.icustays", "intime"],
+        "activity_identifier_attribute": ["public.icustays", "first_wardid"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["icustays", "outtime"],
+        "timestamp_attribute": ["public.icustays", "outtime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["icustays", "outtime"],
-        "activity_identifier_attribute": ["icustays", "last_careunit"],
+        "timestamp_attribute": ["public.icustays", "outtime"],
+        "activity_identifier_attribute": ["public.icustays", "last_careunit"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["icustays", "outtime"],
-        "activity_identifier_attribute": ["icustays", "last_wardid"],
+        "timestamp_attribute": ["public.icustays", "outtime"],
+        "activity_identifier_attribute": ["public.icustays", "last_wardid"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["inputevents_cv", "charttime"],
+        "timestamp_attribute": ["public.inputevents_cv", "charttime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["inputevents_cv", "storetime"],
+        "timestamp_attribute": ["public.inputevents_cv", "storetime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "starttime"],
+        "timestamp_attribute": ["public.inputevents_mv", "starttime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "starttime"],
-        "activity_identifier_attribute": ["inputevents_mv", "ordercategoryname"],
+        "timestamp_attribute": ["public.inputevents_mv", "starttime"],
+        "activity_identifier_attribute": ["public.inputevents_mv", "ordercategoryname"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "starttime"],
-        "activity_identifier_attribute": ["d_items", "label"],
+        "timestamp_attribute": ["public.inputevents_mv", "starttime"],
+        "activity_identifier_attribute": ["public.d_items", "label"],
         "relationship": "inputevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "starttime"],
-        "activity_identifier_attribute": ["d_items", "abbreviation"],
+        "timestamp_attribute": ["public.inputevents_mv", "starttime"],
+        "activity_identifier_attribute": ["public.d_items", "abbreviation"],
         "relationship": "inputevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "starttime"],
-        "activity_identifier_attribute": ["d_items", "category"],
+        "timestamp_attribute": ["public.inputevents_mv", "starttime"],
+        "activity_identifier_attribute": ["public.d_items", "category"],
         "relationship": "inputevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "endtime"],
+        "timestamp_attribute": ["public.inputevents_mv", "endtime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "endtime"],
-        "activity_identifier_attribute": ["inputevents_mv", "ordercategoryname"],
+        "timestamp_attribute": ["public.inputevents_mv", "endtime"],
+        "activity_identifier_attribute": ["public.inputevents_mv", "ordercategoryname"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "endtime"],
-        "activity_identifier_attribute": ["d_items", "label"],
+        "timestamp_attribute": ["public.inputevents_mv", "endtime"],
+        "activity_identifier_attribute": ["public.d_items", "label"],
         "relationship": "inputevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "endtime"],
-        "activity_identifier_attribute": ["d_items", "abbreviation"],
+        "timestamp_attribute": ["public.inputevents_mv", "endtime"],
+        "activity_identifier_attribute": ["public.d_items", "abbreviation"],
         "relationship": "inputevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "endtime"],
-        "activity_identifier_attribute": ["d_items", "category"],
+        "timestamp_attribute": ["public.inputevents_mv", "endtime"],
+        "activity_identifier_attribute": ["public.d_items", "category"],
         "relationship": "inputevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "storetime"],
+        "timestamp_attribute": ["public.inputevents_mv", "storetime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "storetime"],
-        "activity_identifier_attribute": ["inputevents_mv", "ordercategoryname"],
+        "timestamp_attribute": ["public.inputevents_mv", "storetime"],
+        "activity_identifier_attribute": ["public.inputevents_mv", "ordercategoryname"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "storetime"],
-        "activity_identifier_attribute": ["d_items", "label"],
+        "timestamp_attribute": ["public.inputevents_mv", "storetime"],
+        "activity_identifier_attribute": ["public.d_items", "label"],
         "relationship": "inputevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "storetime"],
-        "activity_identifier_attribute": ["d_items", "abbreviation"],
+        "timestamp_attribute": ["public.inputevents_mv", "storetime"],
+        "activity_identifier_attribute": ["public.d_items", "abbreviation"],
         "relationship": "inputevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "storetime"],
-        "activity_identifier_attribute": ["d_items", "category"],
+        "timestamp_attribute": ["public.inputevents_mv", "storetime"],
+        "activity_identifier_attribute": ["public.d_items", "category"],
         "relationship": "inputevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "comments_date"],
+        "timestamp_attribute": ["public.inputevents_mv", "comments_date"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "comments_date"],
-        "activity_identifier_attribute": ["inputevents_mv", "ordercategoryname"],
+        "timestamp_attribute": ["public.inputevents_mv", "comments_date"],
+        "activity_identifier_attribute": ["public.inputevents_mv", "ordercategoryname"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "comments_date"],
-        "activity_identifier_attribute": ["inputevents_mv", "cancelreason"],
+        "timestamp_attribute": ["public.inputevents_mv", "comments_date"],
+        "activity_identifier_attribute": ["public.inputevents_mv", "cancelreason"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "comments_date"],
-        "activity_identifier_attribute": ["d_items", "label"],
+        "timestamp_attribute": ["public.inputevents_mv", "comments_date"],
+        "activity_identifier_attribute": ["public.d_items", "label"],
         "relationship": "inputevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "comments_date"],
-        "activity_identifier_attribute": ["d_items", "abbreviation"],
+        "timestamp_attribute": ["public.inputevents_mv", "comments_date"],
+        "activity_identifier_attribute": ["public.d_items", "abbreviation"],
         "relationship": "inputevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["inputevents_mv", "comments_date"],
-        "activity_identifier_attribute": ["d_items", "category"],
+        "timestamp_attribute": ["public.inputevents_mv", "comments_date"],
+        "activity_identifier_attribute": ["public.d_items", "category"],
         "relationship": "inputevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["labevents", "charttime"],
+        "timestamp_attribute": ["public.labevents", "charttime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["labevents", "charttime"],
-        "activity_identifier_attribute": ["d_labitems", "label"],
+        "timestamp_attribute": ["public.labevents", "charttime"],
+        "activity_identifier_attribute": ["public.d_labitems", "label"],
         "relationship": "labevents_fk_itemid"
     },
     {
-        "timestamp_attribute": ["labevents", "charttime"],
-        "activity_identifier_attribute": ["d_labitems", "fluid"],
+        "timestamp_attribute": ["public.labevents", "charttime"],
+        "activity_identifier_attribute": ["public.d_labitems", "fluid"],
         "relationship": "labevents_fk_itemid"
     },
     {
-        "timestamp_attribute": ["labevents", "charttime"],
-        "activity_identifier_attribute": ["d_labitems", "category"],
+        "timestamp_attribute": ["public.labevents", "charttime"],
+        "activity_identifier_attribute": ["public.d_labitems", "category"],
         "relationship": "labevents_fk_itemid"
     },
     {
-        "timestamp_attribute": ["microbiologyevents", "chartdate"],
+        "timestamp_attribute": ["public.microbiologyevents", "chartdate"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["microbiologyevents", "chartdate"],
-        "activity_identifier_attribute": ["microbiologyevents", "spec_type_desc"],
+        "timestamp_attribute": ["public.microbiologyevents", "chartdate"],
+        "activity_identifier_attribute": ["public.microbiologyevents", "spec_type_desc"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["microbiologyevents", "chartdate"],
-        "activity_identifier_attribute": ["d_items", "label"],
+        "timestamp_attribute": ["public.microbiologyevents", "chartdate"],
+        "activity_identifier_attribute": ["public.d_items", "label"],
         "relationship": "microbiologyevents_fk_spec_itemid"
     },
     {
-        "timestamp_attribute": ["microbiologyevents", "charttime"],
+        "timestamp_attribute": ["public.microbiologyevents", "charttime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["microbiologyevents", "charttime"],
-        "activity_identifier_attribute": ["microbiologyevents", "spec_type_desc"],
+        "timestamp_attribute": ["public.microbiologyevents", "charttime"],
+        "activity_identifier_attribute": ["public.microbiologyevents", "spec_type_desc"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["microbiologyevents", "charttime"],
-        "activity_identifier_attribute": ["d_items", "label"],
+        "timestamp_attribute": ["public.microbiologyevents", "charttime"],
+        "activity_identifier_attribute": ["public.d_items", "label"],
         "relationship": "microbiologyevents_fk_spec_itemid"
     },
     {
-        "timestamp_attribute": ["outputevents", "charttime"],
+        "timestamp_attribute": ["public.outputevents", "charttime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["outputevents", "charttime"],
-        "activity_identifier_attribute": ["d_items", "label"],
+        "timestamp_attribute": ["public.outputevents", "charttime"],
+        "activity_identifier_attribute": ["public.d_items", "label"],
         "relationship": "outputevents_fk_itemid"
     },
     {
-        "timestamp_attribute": ["outputevents", "storetime"],
+        "timestamp_attribute": ["public.outputevents", "storetime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["outputevents", "storetime"],
-        "activity_identifier_attribute": ["d_items", "label"],
+        "timestamp_attribute": ["public.outputevents", "storetime"],
+        "activity_identifier_attribute": ["public.d_items", "label"],
         "relationship": "outputevents_fk_itemid"
     },
     {
-        "timestamp_attribute": ["prescriptions", "startdate"],
+        "timestamp_attribute": ["public.prescriptions", "startdate"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["prescriptions", "startdate"],
-        "activity_identifier_attribute": ["prescriptions", "drug_type"],
+        "timestamp_attribute": ["public.prescriptions", "startdate"],
+        "activity_identifier_attribute": ["public.prescriptions", "drug_type"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["prescriptions", "startdate"],
-        "activity_identifier_attribute": ["prescriptions", "drug"],
+        "timestamp_attribute": ["public.prescriptions", "startdate"],
+        "activity_identifier_attribute": ["public.prescriptions", "drug"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["prescriptions", "startdate"],
-        "activity_identifier_attribute": ["prescriptions", "formulary_drug_cd"],
+        "timestamp_attribute": ["public.prescriptions", "startdate"],
+        "activity_identifier_attribute": ["public.prescriptions", "formulary_drug_cd"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["prescriptions", "enddate"],
+        "timestamp_attribute": ["public.prescriptions", "enddate"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["prescriptions", "enddate"],
-        "activity_identifier_attribute": ["prescriptions", "drug_type"],
+        "timestamp_attribute": ["public.prescriptions", "enddate"],
+        "activity_identifier_attribute": ["public.prescriptions", "drug_type"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["prescriptions", "enddate"],
-        "activity_identifier_attribute": ["prescriptions", "drug"],
+        "timestamp_attribute": ["public.prescriptions", "enddate"],
+        "activity_identifier_attribute": ["public.prescriptions", "drug"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["prescriptions", "enddate"],
-        "activity_identifier_attribute": ["prescriptions", "formulary_drug_cd"],
+        "timestamp_attribute": ["public.prescriptions", "enddate"],
+        "activity_identifier_attribute": ["public.prescriptions", "formulary_drug_cd"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "starttime"],
+        "timestamp_attribute": ["public.procedureevents_mv", "starttime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "starttime"],
-        "activity_identifier_attribute": ["procedureevents_mv", "ordercategoryname"],
+        "timestamp_attribute": ["public.procedureevents_mv", "starttime"],
+        "activity_identifier_attribute": ["public.procedureevents_mv", "ordercategoryname"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "starttime"],
-        "activity_identifier_attribute": ["procedureevents_mv", "ordercategorydescription"],
+        "timestamp_attribute": ["public.procedureevents_mv", "starttime"],
+        "activity_identifier_attribute": ["public.procedureevents_mv", "ordercategorydescription"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "starttime"],
-        "activity_identifier_attribute": ["d_items", "label"],
+        "timestamp_attribute": ["public.procedureevents_mv", "starttime"],
+        "activity_identifier_attribute": ["public.d_items", "label"],
         "relationship": "procedureevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "starttime"],
-        "activity_identifier_attribute": ["d_items", "abbreviation"],
+        "timestamp_attribute": ["public.procedureevents_mv", "starttime"],
+        "activity_identifier_attribute": ["public.d_items", "abbreviation"],
         "relationship": "procedureevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "starttime"],
-        "activity_identifier_attribute": ["d_items", "category"],
+        "timestamp_attribute": ["public.procedureevents_mv", "starttime"],
+        "activity_identifier_attribute": ["public.d_items", "category"],
         "relationship": "procedureevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "endtime"],
+        "timestamp_attribute": ["public.procedureevents_mv", "endtime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "endtime"],
-        "activity_identifier_attribute": ["procedureevents_mv", "ordercategoryname"],
+        "timestamp_attribute": ["public.procedureevents_mv", "endtime"],
+        "activity_identifier_attribute": ["public.procedureevents_mv", "ordercategoryname"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "endtime"],
-        "activity_identifier_attribute": ["procedureevents_mv", "ordercategorydescription"],
+        "timestamp_attribute": ["public.procedureevents_mv", "endtime"],
+        "activity_identifier_attribute": ["public.procedureevents_mv", "ordercategorydescription"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "endtime"],
-        "activity_identifier_attribute": ["d_items", "label"],
+        "timestamp_attribute": ["public.procedureevents_mv", "endtime"],
+        "activity_identifier_attribute": ["public.d_items", "label"],
         "relationship": "procedureevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "endtime"],
-        "activity_identifier_attribute": ["d_items", "abbreviation"],
+        "timestamp_attribute": ["public.procedureevents_mv", "endtime"],
+        "activity_identifier_attribute": ["public.d_items", "abbreviation"],
         "relationship": "procedureevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "endtime"],
-        "activity_identifier_attribute": ["d_items", "category"],
+        "timestamp_attribute": ["public.procedureevents_mv", "endtime"],
+        "activity_identifier_attribute": ["public.d_items", "category"],
         "relationship": "procedureevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "storetime"],
+        "timestamp_attribute": ["public.procedureevents_mv", "storetime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "storetime"],
-        "activity_identifier_attribute": ["procedureevents_mv", "ordercategoryname"],
+        "timestamp_attribute": ["public.procedureevents_mv", "storetime"],
+        "activity_identifier_attribute": ["public.procedureevents_mv", "ordercategoryname"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "storetime"],
-        "activity_identifier_attribute": ["procedureevents_mv", "ordercategorydescription"],
+        "timestamp_attribute": ["public.procedureevents_mv", "storetime"],
+        "activity_identifier_attribute": ["public.procedureevents_mv", "ordercategorydescription"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "storetime"],
-        "activity_identifier_attribute": ["d_items", "label"],
+        "timestamp_attribute": ["public.procedureevents_mv", "storetime"],
+        "activity_identifier_attribute": ["public.d_items", "label"],
         "relationship": "procedureevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "storetime"],
-        "activity_identifier_attribute": ["d_items", "abbreviation"],
+        "timestamp_attribute": ["public.procedureevents_mv", "storetime"],
+        "activity_identifier_attribute": ["public.d_items", "abbreviation"],
         "relationship": "procedureevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "storetime"],
-        "activity_identifier_attribute": ["d_items", "category"],
+        "timestamp_attribute": ["public.procedureevents_mv", "storetime"],
+        "activity_identifier_attribute": ["public.d_items", "category"],
         "relationship": "procedureevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "comments_date"],
+        "timestamp_attribute": ["public.procedureevents_mv", "comments_date"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "comments_date"],
-        "activity_identifier_attribute": ["procedureevents_mv", "ordercategoryname"],
+        "timestamp_attribute": ["public.procedureevents_mv", "comments_date"],
+        "activity_identifier_attribute": ["public.procedureevents_mv", "ordercategoryname"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "comments_date"],
-        "activity_identifier_attribute": ["procedureevents_mv", "ordercategorydescription"],
+        "timestamp_attribute": ["public.procedureevents_mv", "comments_date"],
+        "activity_identifier_attribute": ["public.procedureevents_mv", "ordercategorydescription"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "comments_date"],
-        "activity_identifier_attribute": ["procedureevents_mv", "cancelreason"],
+        "timestamp_attribute": ["public.procedureevents_mv", "comments_date"],
+        "activity_identifier_attribute": ["public.procedureevents_mv", "cancelreason"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "comments_date"],
-        "activity_identifier_attribute": ["d_items", "label"],
+        "timestamp_attribute": ["public.procedureevents_mv", "comments_date"],
+        "activity_identifier_attribute": ["public.d_items", "label"],
         "relationship": "procedureevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "comments_date"],
-        "activity_identifier_attribute": ["d_items", "abbreviation"],
+        "timestamp_attribute": ["public.procedureevents_mv", "comments_date"],
+        "activity_identifier_attribute": ["public.d_items", "abbreviation"],
         "relationship": "procedureevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["procedureevents_mv", "comments_date"],
-        "activity_identifier_attribute": ["d_items", "category"],
+        "timestamp_attribute": ["public.procedureevents_mv", "comments_date"],
+        "activity_identifier_attribute": ["public.d_items", "category"],
         "relationship": "procedureevents_mv_fk_itemid"
     },
     {
-        "timestamp_attribute": ["services", "transfertime"],
+        "timestamp_attribute": ["public.services", "transfertime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["services", "transfertime"],
-        "activity_identifier_attribute": ["services", "curr_service"],
+        "timestamp_attribute": ["public.services", "transfertime"],
+        "activity_identifier_attribute": ["public.services", "curr_service"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["transfers", "intime"],
+        "timestamp_attribute": ["public.transfers", "intime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["transfers", "intime"],
-        "activity_identifier_attribute": ["transfers", "eventtype"],
+        "timestamp_attribute": ["public.transfers", "intime"],
+        "activity_identifier_attribute": ["public.transfers", "eventtype"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["transfers", "intime"],
-        "activity_identifier_attribute": ["transfers", "curr_careunit"],
+        "timestamp_attribute": ["public.transfers", "intime"],
+        "activity_identifier_attribute": ["public.transfers", "curr_careunit"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["transfers", "intime"],
-        "activity_identifier_attribute": ["transfers", "curr_wardid"],
+        "timestamp_attribute": ["public.transfers", "intime"],
+        "activity_identifier_attribute": ["public.transfers", "curr_wardid"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["transfers", "outtime"],
+        "timestamp_attribute": ["public.transfers", "outtime"],
         "activity_identifier_attribute": null,
         "relationship": null
     },
     {
-        "timestamp_attribute": ["transfers", "outtime"],
-        "activity_identifier_attribute": ["transfers", "curr_careunit"],
+        "timestamp_attribute": ["public.transfers", "outtime"],
+        "activity_identifier_attribute": ["public.transfers", "curr_careunit"],
         "relationship": null
     },
     {
-        "timestamp_attribute": ["transfers", "outtime"],
-        "activity_identifier_attribute": ["transfers", "curr_wardid"],
+        "timestamp_attribute": ["public.transfers", "outtime"],
+        "activity_identifier_attribute": ["public.transfers", "curr_wardid"],
         "relationship": null
     }
 ]

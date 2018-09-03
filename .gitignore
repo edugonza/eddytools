@@ -14,3 +14,4 @@ dist/
 /htmlcov/
 /data/output/
 /data/ds2/postgresql/
+/data/private/

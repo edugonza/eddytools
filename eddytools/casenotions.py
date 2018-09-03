@@ -78,7 +78,6 @@ class CaseNotion(dict):
         return str(d).__hash__()
 
 
-
 def compute_candidates(mm_engine: Engine, min_rel_threshold=0, max_length_path=5, cache_dir: str='.') -> dict:
 
     candidates = SqliteDict(

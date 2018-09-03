@@ -24,7 +24,7 @@ if __name__ == '__main__':
         'username': 'postgres',
         'password': 'postgres',
         'host': 'localhost',
-        'port': '5558',
+        'port': '5555',
         'database': 'mimic',
     }
 
