@@ -23,7 +23,7 @@ def test_candidates():
 
     candidates = cn.compute_candidates(mm_engine)
 
-    json.dump(candidates, open('output/dumps/candidates.json', 'wt'), indent=True)
+    # json.dump(candidates, open('output/dumps/candidates.json', 'wt'), indent=True)
 
     random.seed(0)
 
