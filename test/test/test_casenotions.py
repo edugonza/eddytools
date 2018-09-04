@@ -29,7 +29,7 @@ def test_candidates():
 
     random.shuffle(candidates)
 
-    for idx, cand in enumerate(candidates[:5]):
+    for idx, cand in enumerate(list(candidates.values())[:min(5, candidates.__len__())]):
         log_name = 'log_test_{}'.format(idx)
         print('Computing Log: {}'.format(log_name))
         cn.build_log_for_case_notion(mm_engine, cand,
