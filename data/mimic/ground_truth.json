@@ -56,7 +56,7 @@
     },
     {
         "timestamp_attribute": ["public.callout", "createtime"],
-        "activity_identifier_attribute": ["public.callout", "submit_careunit"],
+        "activity_identifier_attribute": ["public.callout", "curr_wardid"],
         "relationship": null
     },
     {
@@ -81,7 +81,7 @@
     },
     {
         "timestamp_attribute": ["public.callout", "updatetime"],
-        "activity_identifier_attribute": ["public.callout", "submit_careunit"],
+        "activity_identifier_attribute": ["public.callout", "curr_wardid"],
         "relationship": null
     },
     {
@@ -106,7 +106,7 @@
     },
     {
         "timestamp_attribute": ["public.callout", "acknowledgetime"],
-        "activity_identifier_attribute": ["public.callout", "submit_careunit"],
+        "activity_identifier_attribute": ["public.callout", "curr_wardid"],
         "relationship": null
     },
     {
@@ -131,7 +131,7 @@
     },
     {
         "timestamp_attribute": ["public.callout", "outcometime"],
-        "activity_identifier_attribute": ["public.callout", "submit_careunit"],
+        "activity_identifier_attribute": ["public.callout", "curr_wardid"],
         "relationship": null
     },
     {
@@ -166,7 +166,7 @@
     },
     {
         "timestamp_attribute": ["public.callout", "firstreservationtime"],
-        "activity_identifier_attribute": ["public.callout", "submit_careunit"],
+        "activity_identifier_attribute": ["public.callout", "curr_wardid"],
         "relationship": null
     },
     {
@@ -191,7 +191,7 @@
     },
     {
         "timestamp_attribute": ["public.callout", "currentreservationtime"],
-        "activity_identifier_attribute": ["public.callout", "submit_careunit"],
+        "activity_identifier_attribute": ["public.callout", "curr_wardid"],
         "relationship": null
     },
     {
@@ -661,7 +661,7 @@
     },
     {
         "timestamp_attribute": ["public.transfers", "intime"],
-        "activity_identifier_attribute": ["public.transfers", "curr_careunit"],
+        "activity_identifier_attribute": ["public.transfers", "prev_wardid"],
         "relationship": null
     },
     {
@@ -672,11 +672,6 @@
     {
         "timestamp_attribute": ["public.transfers", "outtime"],
         "activity_identifier_attribute": null,
-        "relationship": null
-    },
-    {
-        "timestamp_attribute": ["public.transfers", "outtime"],
-        "activity_identifier_attribute": ["public.transfers", "curr_careunit"],
         "relationship": null
     },
     {

@@ -1,0 +1,157 @@
+[
+    {
+        "timestamp_attribute": ["HumanResources.EmployeeDepartmentHistory", "StartDate"],
+        "activity_identifier_attribute": ["HumanResources.Department", "Name"],
+        "relationship": "FK_EmployeeDepartmentHistory_Department_DepartmentID"
+    },
+    {
+        "timestamp_attribute": ["HumanResources.EmployeeDepartmentHistory", "StartDate"],
+        "activity_identifier_attribute": ["HumanResources.Department", "GroupName"],
+        "relationship": "FK_EmployeeDepartmentHistory_Department_DepartmentID"
+    },
+    {
+        "timestamp_attribute": ["HumanResources.EmployeeDepartmentHistory", "StartDate"],
+        "activity_identifier_attribute": ["HumanResources.Shift", "Name"],
+        "relationship": "FK_EmployeeDepartmentHistory_Shift_ShiftID"
+    },
+    {
+        "timestamp_attribute": ["HumanResources.EmployeeDepartmentHistory", "EndDate"],
+        "activity_identifier_attribute": ["HumanResources.Department", "Name"],
+        "relationship": "FK_EmployeeDepartmentHistory_Department_DepartmentID"
+    },
+    {
+        "timestamp_attribute": ["HumanResources.EmployeeDepartmentHistory", "EndDate"],
+        "activity_identifier_attribute": ["HumanResources.Department", "GroupName"],
+        "relationship": "FK_EmployeeDepartmentHistory_Department_DepartmentID"
+    },
+    {
+        "timestamp_attribute": ["HumanResources.EmployeeDepartmentHistory", "EndDate"],
+        "activity_identifier_attribute": ["HumanResources.Shift", "Name"],
+        "relationship": "FK_EmployeeDepartmentHistory_Shift_ShiftID"
+    },
+    {
+        "timestamp_attribute": ["HumanResources.EmployeeDepartmentHistory", "ModifiedDate"],
+        "activity_identifier_attribute": ["HumanResources.Department", "Name"],
+        "relationship": "FK_EmployeeDepartmentHistory_Department_DepartmentID"
+    },
+    {
+        "timestamp_attribute": ["HumanResources.EmployeeDepartmentHistory", "ModifiedDate"],
+        "activity_identifier_attribute": ["HumanResources.Department", "GroupName"],
+        "relationship": "FK_EmployeeDepartmentHistory_Department_DepartmentID"
+    },
+    {
+        "timestamp_attribute": ["HumanResources.EmployeeDepartmentHistory", "ModifiedDate"],
+        "activity_identifier_attribute": ["HumanResources.Shift", "Name"],
+        "relationship": "FK_EmployeeDepartmentHistory_Shift_ShiftID"
+    },
+    {
+        "timestamp_attribute": ["Person.Person", "ModifiedDate"],
+        "activity_identifier_attribute": ["Person.Person", "PersonType"],
+        "relationship": null
+    },
+    {
+        "timestamp_attribute": ["Person.BusinessEntityContact", "ModifiedDate"],
+        "activity_identifier_attribute": ["Person.ContactType", "Name"],
+        "relationship": "FK_BusinessEntityContact_ContactType_ContactTypeID"
+    },
+    {
+        "timestamp_attribute": ["Person.BusinessEntityAddress", "ModifiedDate"],
+        "activity_identifier_attribute": ["Person.AddressType", "Name"],
+        "relationship": "FK_BusinessEntityAddress_AddressType_AddressTypeID"
+    },
+    {
+        "timestamp_attribute": ["Purchasing.PurchaseOrderHeader", "ShipDate"],
+        "activity_identifier_attribute": ["Purchasing.ShipMethod", "Name"],
+        "relationship": "FK_PurchaseOrderHeader_ShipMethod_ShipMethodID"
+    },
+    {
+        "timestamp_attribute": ["Sales.SalesOrderHeader", "ShipDate"],
+        "activity_identifier_attribute": ["Purchasing.ShipMethod", "Name"],
+        "relationship": "FK_SalesOrderHeader_ShipMethod_ShipMethodID"
+    },
+    {
+        "timestamp_attribute": ["Sales.SpecialOffer", "StartDate"],
+        "activity_identifier_attribute": ["Sales.SpecialOffer", "Type"],
+        "relationship": null
+    },
+    {
+        "timestamp_attribute": ["Sales.SpecialOffer", "StartDate"],
+        "activity_identifier_attribute": ["Sales.SpecialOffer", "Category"],
+        "relationship": null
+    },
+    {
+        "timestamp_attribute": ["Sales.SpecialOffer", "EndDate"],
+        "activity_identifier_attribute": ["Sales.SpecialOffer", "Type"],
+        "relationship": null
+    },
+    {
+        "timestamp_attribute": ["Sales.SpecialOffer", "EndDate"],
+        "activity_identifier_attribute": ["Sales.SpecialOffer", "Category"],
+        "relationship": null
+    },
+    {
+        "timestamp_attribute": ["Sales.SpecialOffer", "ModifiedDate"],
+        "activity_identifier_attribute": ["Sales.SpecialOffer", "Type"],
+        "relationship": null
+    },
+    {
+        "timestamp_attribute": ["Sales.SpecialOffer", "ModifiedDate"],
+        "activity_identifier_attribute": ["Sales.SpecialOffer", "Category"],
+        "relationship": null
+    },
+    {
+        "timestamp_attribute": ["Sales.SpecialOfferProduct", "ModifiedDate"],
+        "activity_identifier_attribute": ["Sales.SpecialOffer", "Type"],
+        "relationship": "FK_SpecialOfferProduct_SpecialOffer_SpecialOfferID"
+    },
+    {
+        "timestamp_attribute": ["Sales.SpecialOfferProduct", "ModifiedDate"],
+        "activity_identifier_attribute": ["Sales.SpecialOffer", "Category"],
+        "relationship": "FK_SpecialOfferProduct_SpecialOffer_SpecialOfferID"
+    },
+    {
+        "timestamp_attribute": ["Production.TransactionHistory", "TransactionDate"],
+        "activity_identifier_attribute": ["Production.TransactionHistory", "TransactionType"],
+        "relationship": null
+    },
+    {
+        "timestamp_attribute": ["Production.TransactionHistory", "ModifiedDate"],
+        "activity_identifier_attribute": ["Production.TransactionHistory", "TransactionType"],
+        "relationship": null
+    },
+    {
+        "timestamp_attribute": ["Production.TransactionHistoryArchive", "TransactionDate"],
+        "activity_identifier_attribute": ["Production.TransactionHistoryArchive", "TransactionType"],
+        "relationship": null
+    },
+    {
+        "timestamp_attribute": ["Production.TransactionHistoryArchive", "ModifiedDate"],
+        "activity_identifier_attribute": ["Production.TransactionHistoryArchive", "TransactionType"],
+        "relationship": null
+    },
+    {
+        "timestamp_attribute": ["Production.WorkOrderRouting", "ScheduledStartDate"],
+        "activity_identifier_attribute": ["Production.Location", "Name"],
+        "relationship": "FK_WorkOrderRouting_Location_LocationID"
+    },
+    {
+        "timestamp_attribute": ["Production.WorkOrderRouting", "ScheduledEndDate"],
+        "activity_identifier_attribute": ["Production.Location", "Name"],
+        "relationship": "FK_WorkOrderRouting_Location_LocationID"
+    },
+    {
+        "timestamp_attribute": ["Production.WorkOrderRouting", "ActualStartDate"],
+        "activity_identifier_attribute": ["Production.Location", "Name"],
+        "relationship": "FK_WorkOrderRouting_Location_LocationID"
+    },
+    {
+        "timestamp_attribute": ["Production.WorkOrderRouting", "ActualEndDate"],
+        "activity_identifier_attribute": ["Production.Location", "Name"],
+        "relationship": "FK_WorkOrderRouting_Location_LocationID"
+    },
+    {
+        "timestamp_attribute": ["Production.WorkOrderRouting", "ModifiedDate"],
+        "activity_identifier_attribute": ["Production.Location", "Name"],
+        "relationship": "FK_WorkOrderRouting_Location_LocationID"
+    }
+]
