@@ -9,6 +9,9 @@ before_install:
         - sudo apt-get install freetds-dev
         #        - cd data/adw && ./build-image.sh && ./restore-db.sh && cd ../../
         - cd data/ds2 && ./build-image.sh && ./run-image.sh && ./check-health.sh && cd ../../
+        - cd data/ds2 && tar xvjf *.bz2 && cd ../../
+        - cd data/adw && tar xvjf *.bz2 && cd ../../
+        - cd data/mm && tar xvjf *.bz2 && cd ../../
 
 language: python
 python:
