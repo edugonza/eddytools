@@ -6,7 +6,7 @@ from eddytools.casenotions import get_all_classes
 from eddytools.events.encoding import Candidate
 from eddytools.events.activity_identifier_discovery import ActivityIdentifierDiscoverer
 from eddytools.events import activity_identifier_feature_functions as evff
-from sklearn.ensemble import AdaBoostClassifier
+from eddytools.events.activity_identifier_predictors import make_sklearn_pipeline
 import json
 from xgboost.sklearn import XGBClassifier
 from sklearn.utils.class_weight import compute_class_weight
@@ -14,112 +14,96 @@ from typing import List
 import dateparser
 from datetime import datetime
 from tqdm import tqdm
+import pickle
+from pprint import pprint
 
 
 def discover_event_definitions(mm_engine: Engine, mm_meta: MetaData,
-                               classifier: AdaBoostClassifier=None,
-                               encoders: dict=None,
                                classes: list=None,
-                               dump_dir: str=None) -> (list, ActivityIdentifierDiscoverer):
+                               dump_dir: str=None,
+                               model='default',
+                               model_path=None) -> (list, ActivityIdentifierDiscoverer):
 
-    aid = ActivityIdentifierDiscoverer(engine=mm_engine, meta=mm_meta)
+    aid = ActivityIdentifierDiscoverer(engine=mm_engine, meta=mm_meta, model=model, model_path=model_path)
 
-    timestamp_attrs = []
+    timestamp_attrs = aid.get_timestamp_attributes(classes=classes)
 
-    tb_class: Table = mm_meta.tables['class'].alias('cl')
-    tb_att_n: Table = mm_meta.tables['attribute_name'].alias('at')
-    c_att_type: Column = tb_att_n.columns['type']
-    c_att_name: Column = tb_att_n.columns['name']
-    c_att_id: Column = tb_att_n.columns['id']
-    c_cl_name: Column = tb_class.columns['name']
+    # timestamp_attrs = []
+    #
+    # tb_class: Table = mm_meta.tables['class'].alias('cl')
+    # tb_att_n: Table = mm_meta.tables['attribute_name'].alias('at')
+    # c_att_type: Column = tb_att_n.columns['type']
+    # c_att_name: Column = tb_att_n.columns['name']
+    # c_att_id: Column = tb_att_n.columns['id']
+    # c_cl_name: Column = tb_class.columns['name']
+    #
+    # class_names = []
+    # if not classes:
+    #     cls = get_all_classes(mm_engine, mm_meta)
+    #     class_names = [c['name'] for c in cls]
+    # else:
+    #     class_names = classes
+    #
+    # query = select([c_att_id]).\
+    #     select_from(tb_class.join(tb_att_n)).\
+    #     where(and_(c_att_type == 'timestamp',
+    #                c_cl_name.in_(class_names)))
+    # ts_fields = mm_engine.execute(query)
+    # for ts in ts_fields:
+    #     timestamp_attrs.append(ts[0])
 
-    class_names = []
-    if not classes:
-        cls = get_all_classes(mm_engine, mm_meta)
-        class_names = [c['name'] for c in cls]
-    else:
-        class_names = classes
+    # print(timestamp_attrs)
 
-    query = select([c_att_id]).\
-        select_from(tb_class.join(tb_att_n)).\
-        where(and_(c_att_type == 'timestamp',
-                   c_cl_name.in_(class_names)))
-    ts_fields = mm_engine.execute(query)
-    for ts in ts_fields:
-        timestamp_attrs.append(ts[0])
-
-    print(timestamp_attrs)
-
-    aid.generate_candidates(timestamp_attrs=timestamp_attrs)
-
-    if dump_dir:
-        aid.save_candidates('{}/candidates.json'.format(dump_dir))
-
-    features = evff.all_
-
-    aid.compute_features(features=features, filter=True, verbose=True)
+    candidates = aid.generate_candidates(timestamp_attrs=timestamp_attrs, candidate_types='in_table')
 
     if dump_dir:
-        aid.save_features('{}/features_all.json'.format(dump_dir))
+        aid.save_candidates(candidates, '{}/candidates.json'.format(dump_dir))
 
-    aid.filter_features(evff.filtered)
+    feature_values = aid.compute_features(candidates, verbose=True)
 
     if dump_dir:
-        aid.save_features('{}/features_filtered.json'.format(dump_dir))
+        aid.save_features(feature_values, '{}/feature_values.json'.format(dump_dir))
 
-    if classifier and encoders:
-        predicted = aid.predict(classifier, encoders)
+    if model:
+        predicted = aid.predict(feature_values)
         if dump_dir:
             json.dump(predicted, open('{}/predicted_candidates.json'.format(dump_dir), mode='wt'))
-        return predicted, aid
     else:
-        return aid.candidates, aid
+        predicted = [1 for c in candidates]
+
+    return predicted, candidates, aid
 
 
-def train_classifier(mm_engine: Engine, mm_meta: MetaData, y_true_path: str,
-                     classes: list=None, dump_dir: str=None):
+def train_model(mm_engine: Engine, mm_meta: MetaData, y_true_path: str,
+                classes: list=None, model_output: str=None):
 
-    candidates, aid = discover_event_definitions(mm_engine, mm_meta,
-                                     classes=classes, dump_dir=dump_dir)
+    aid = ActivityIdentifierDiscoverer(engine=mm_engine, meta=mm_meta,
+                                       model=None)
+    timestamp_attrs = aid.get_timestamp_attributes(classes=classes)
 
-    encoders = {}
+    candidates = aid.generate_candidates(timestamp_attrs=timestamp_attrs, candidate_types='in_table')
 
-    aid.load_y_true(y_true_path=y_true_path)
+    X = aid.compute_features(candidates, verbose=1)
+    y_true = aid.load_y_true(candidates, y_true_path=y_true_path)
 
-    classifier = AdaBoostClassifier(n_estimators=500, random_state=1)
-    classifier_name = classifier.__str__()
+    class_weight = compute_class_weight('balanced', [0, 1], y_true)
+    classifier = make_sklearn_pipeline(XGBClassifier(max_depth=3, n_estimators=20, random_state=1,
+                                                     scale_pos_weight=class_weight[1]))
 
-    aid.evaluate([classifier_name], [classifier], encoders, verbose=1)
+    aid.set_model(classifier)
 
-    aid.train_classifier(classifier, encoders)
+    aid.train_model(X, y_true)
 
-    return classifier, encoders
+    y_pred = aid.predict(X)
 
+    scores = aid.score(y_true, y_pred)
 
-def train_classifier_cached(mm_engine: Engine, mm_meta: MetaData,
-                            candidates_path: str, y_true_path: str, features_path: str,
-                            classes: list=None, dump_dir: str=None):
+    pprint(scores)
 
-    aid = ActivityIdentifierDiscoverer(engine=mm_engine, meta=mm_meta)
-
-    aid.load_candidates(candidates_path)
-
-    aid.load_y_true(y_true_path=y_true_path)
-
-    aid.load_features(features_path)
-
-    # classifier = AdaBoostClassifier(n_estimators=500, random_state=1)
-    class_weight = compute_class_weight('balanced', [0, 1], aid.y_true)
-    classifier = XGBClassifier(max_depth=6, n_estimators=500, random_state=1, scale_pos_weight=class_weight[1])
-    classifier_name = classifier.__str__()
-
-    encoders = {}
-
-    aid.evaluate([classifier_name], [classifier], encoders, verbose=1)
-
-    aid.train_classifier(classifier, encoders)
-
-    return classifier, encoders
+    if model_output:
+        with open(model_output, mode='wb') as f:
+            pickle.dump(classifier, f)
+    return classifier
 
 
 def ts_to_millis(ts: str):

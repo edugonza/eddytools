@@ -5,6 +5,7 @@ from datetime import datetime
 
 from eddytools.casenotions import get_all_classes
 from sqlalchemy.schema import Table, MetaData, Column
+from sqlalchemy.engine import Engine
 from sqlalchemy import select, and_, or_
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.metrics import precision_score, recall_score, f1_score, fbeta_score
@@ -12,29 +13,35 @@ from sklearn.metrics import precision_score, recall_score, f1_score, fbeta_score
 from .encoding import Encoder, Candidate
 from .activity_identifier_feature_functions import filtered as filtered_features
 from sqlalchemy import create_engine, MetaData
-
-def connect_to_openslex(openslex_file_path):
-
-    engine = create_engine('sqlite:///{p}'.format(p=openslex_file_path))
-    meta = MetaData()
-    meta.reflect(bind=engine)
-
-    return engine, meta
+from pathlib import Path
+import eddytools
 
 
 class ActivityIdentifierDiscoverer:
 
-    def __init__(self, openslex_filepath):
-        self.engine, self.meta = connect_to_openslex(openslex_filepath)
+    DEFAULT_MODEL_PATH = Path(eddytools.__file__).parent.joinpath('resources').joinpath('model_ev_disc.pkl')
+
+    def __init__(self, engine: Engine, meta: MetaData, model='default', model_path: str=None):
+        self.engine = engine
+        self.meta = meta
 
         self.encoder = Encoder(self.engine, self.meta)
 
-        self.candidates = None
-        self.feature_values = None
-        self.y_true = None
+        self.set_model(model, model_path)
 
-        self.predictors = None
-        self.tuning_results = None
+    def set_model(self, model, model_path=None):
+        self.model = model
+        if model:
+            if type(model) is str:
+                if model == 'default':
+                    with open(self.DEFAULT_MODEL_PATH, mode='rb') as f:
+                        self.model = pickle.load(f)
+                elif model == 'path':
+                    if model_path:
+                        with open(model_path, mode='rb') as f:
+                            self.model = pickle.load(f)
+                    else:
+                        raise Exception('model_path must be provided when model type is \'path\'')
 
     def get_timestamp_attributes(self, classes=None):
         timestamp_attrs = []
@@ -66,13 +73,10 @@ class ActivityIdentifierDiscoverer:
     def save_timestamp_attributes(self, timestamp_attrs, path):
         json.dump(timestamp_attrs, open(path, mode='wt'))
 
-    def generate_candidates(self, timestamp_attrs_filepath, candidate_types):
+    def generate_candidates(self, timestamp_attrs, candidate_types):
         """generates and returns the candidate activity identifiers for each event timestamp.
         Only relationships with one degree of separation are considered."""
-        self.candidates = []
-
-        with open(timestamp_attrs_filepath, 'r') as f:
-            timestamp_attrs = json.load(f)
+        candidates = []
 
         engine = self.engine
         meta = self.meta
@@ -93,9 +97,9 @@ class ActivityIdentifierDiscoverer:
             result = engine.execute(q)
 
             for row in result:
-                self.candidates.append(Candidate(timestamp_attribute_id=row['ts_attr'],
-                                                 activity_identifier_attribute_id=row['aid_attr'],
-                                                 relationship_id=None))
+                candidates.append(Candidate(timestamp_attribute_id=row['ts_attr'],
+                                            activity_identifier_attribute_id=row['aid_attr'],
+                                            relationship_id=None))
 
         if 'lookup' in candidate_types:
             q = (select([t_attr_1.c.id.label('ts_attr'), t_rels.c.id.label('rel_id'), t_attr_2.c.id.label('aid_attr')])
@@ -105,169 +109,200 @@ class ActivityIdentifierDiscoverer:
                  .where(and_(t_attr_1.c.id.in_(timestamp_attrs), t_attr_2.c.type.in_(data_types))))
             result = engine.execute(q)
             for row in result:
-                self.candidates.append(Candidate(timestamp_attribute_id=row['ts_attr'],
-                                                 activity_identifier_attribute_id=row['aid_attr'],
-                                                 relationship_id=row['rel_id']))
+                candidates.append(Candidate(timestamp_attribute_id=row['ts_attr'],
+                                            activity_identifier_attribute_id=row['aid_attr'],
+                                            relationship_id=row['rel_id']))
 
-    def load_candidates(self, filepath):
+        return candidates
+
+    @staticmethod
+    def load_candidates(filepath):
         with open(filepath, 'r') as f:
-            candidates = json.load(f)
-        self.candidates = [Candidate(*c) for c in candidates]
+            candidatesd = json.load(f)
+        candidates = [Candidate(*c) for c in candidatesd]
+        return candidates
 
-    def save_candidates(self, filepath):
+    @staticmethod
+    def save_candidates(candidates, filepath):
         with open(filepath, 'w') as f:
-            json.dump(self.candidates, f, indent=4, sort_keys=True)
+            json.dump(candidates, f, indent=4, sort_keys=True)
 
-    def compute_features(self, features, filter_=True, verbose=0):
-        if self.feature_values:
-            feature_values = self.feature_values
-        else:
-            feature_values = [dict() for c in self.candidates]
+    def compute_features(self, candidates, features='filtered', filter_=True, verbose=0):
+        feature_values = [dict() for c in candidates]
         if features == 'filtered':
             features = filtered_features
         for f in features:
             if verbose:
                 print(str(datetime.now()) + " computing feature '" + f.__name__ + "'")
-            f(self.candidates, feature_values, self.engine, self.meta)
-        self.feature_values = feature_values
+            f(candidates, feature_values, self.engine, self.meta)
         if filter_:
-            self.filter_features(features)
+            feature_values = self.filter_features(features, feature_values)
+        return feature_values
 
     def load_features(self, filepath, features=None):
         with open(filepath, 'rt') as f:
-            self.feature_values = json.load(f)
+            feature_values = json.load(f)
         if features:
-            self.filter_features(features)
+            feature_values = self.filter_features(features, feature_values)
+        return feature_values
 
-    def filter_features(self, features):
+    @staticmethod
+    def filter_features(features, feature_values):
         feature_names = [f.__name__ for f in features]
-        feature_values = self.feature_values
         feature_values_filtered = []
         for fv in feature_values:
             feature_values_filtered.append({name: fv[name] for name in feature_names})
-        self.feature_values = feature_values_filtered
+        return feature_values_filtered
 
-    def save_features(self, filepath):
+    @staticmethod
+    def save_features(feature_values, filepath):
         with open(filepath, 'wt') as f:
-            json.dump(self.feature_values, f, indent=4, sort_keys=True)
+            json.dump(feature_values, f, indent=4, sort_keys=True)
 
-    def load_y_true(self, y_true_path):
+    def load_y_true(self, candidates, y_true_path):
         with open(y_true_path, "rt") as f:
             ground_truth_decoded = json.load(f)
         ground_truth = self.encoder.transform(ground_truth_decoded)
-        y_true = [int(c in ground_truth) for c in self.candidates]
+        y_true = [int(c in ground_truth) for c in candidates]
         y_true = np.asarray(y_true)
-        self.y_true = y_true
+        return y_true
 
-    def predictors_from_tuning_results(self):
-        best_predictors = [{
-            'name': tr['name'],
-            'predictor': tr['tuner'].best_estimator_
-        } for tr in self.tuning_results]
-        self.predictors = best_predictors
-        return self.predictors
+    # def predictors_from_tuning_results(self):
+    #     best_predictors = [{
+    #         'name': tr['name'],
+    #         'predictor': tr['tuner'].best_estimator_
+    #     } for tr in self.tuning_results]
+    #     self.predictors = best_predictors
+    #     return self.predictors
+    #
+    # def predict_proba(self):
+    #     for pr in self.predictors:
+    #         # pr['predictions'] = pr['predictor'].predict(self.feature_values)
+    #         pr['predictions'] = pr['predictor'].predict_proba(self.feature_values)
+    #     return self.predictors
+    #
+    # def predict(self):
+    #     for pr in self.predictors:
+    #         pr['predictions'] = pr['predictor'].predict(self.feature_values)
+    #     return self.predictors
 
-    def predict_proba(self):
-        for pr in self.predictors:
-            # pr['predictions'] = pr['predictor'].predict(self.feature_values)
-            pr['predictions'] = pr['predictor'].predict_proba(self.feature_values)
-        return self.predictors
+    # def score(self):
+    #     self.predict()
+    #     for pr in self.predictors:
+    #         pr['scores'] = {
+    #             'precision': precision_score(self.y_true, pr['predictions']),
+    #             'recall': recall_score(self.y_true, pr['predictions']),
+    #             'f1': f1_score(self.y_true, pr['predictions']),
+    #             'f.5': fbeta_score(self.y_true, pr['predictions'], beta=.5),
+    #             'f2': fbeta_score(self.y_true, pr['predictions'], beta=2),
+    #         }
+    #     return self.predictors
+    #
+    # def score_proba(self):
+    #     self.predict_proba()
+    #     for pr in self.predictors:
+    #         ts_y = dict()
+    #         for i, (c, p) in enumerate(zip(self.candidates, pr['predictions'])):
+    #             p_pos = p[1]
+    #             if c[0] not in ts_y:
+    #                 ts_y[c[0]] = []
+    #             ts_y[c[0]].append((i, p_pos))
+    #
+    #         pred = np.zeros(shape=self.y_true.__len__())
+    #         for ts, probs in ts_y.items():
+    #             sorted_probs = sorted(probs, key=lambda x: x[1], reverse=True)
+    #             for (i, p) in sorted_probs[:1]:
+    #                 if p > 0.5:
+    #                     pred[i] = 1
+    #
+    #         pr['scores'] = {
+    #             'precision': precision_score(self.y_true, pred),
+    #             'recall': recall_score(self.y_true, pred),
+    #             'f1': f1_score(self.y_true, pred),
+    #             'f.5': fbeta_score(self.y_true, pred, beta=.5),
+    #             'f2': fbeta_score(self.y_true, pred, beta=2),
+    #         }
+    #     return self.predictors
 
-    def predict(self):
-        for pr in self.predictors:
-            pr['predictions'] = pr['predictor'].predict(self.feature_values)
-        return self.predictors
+    # def save_predictors(self, filepath):
+    #     predictors = [{'name': pr['name'], 'predictor': pr['predictor']} for pr in self.predictors]
+    #     with open(filepath, 'wb') as f:
+    #         pickle.dump(predictors, f)
+    #
+    # def save_scores(self, filepath):
+    #     scores = [{'name': pr['name'], 'scores': pr['scores']} for pr in self.predictors]
+    #     with open(filepath, 'wb') as f:
+    #         pickle.dump(scores, f)
 
-    def score(self):
-        self.predict()
-        for pr in self.predictors:
-            pr['scores'] = {
-                'precision': precision_score(self.y_true, pr['predictions']),
-                'recall': recall_score(self.y_true, pr['predictions']),
-                'f1': f1_score(self.y_true, pr['predictions']),
-                'f.5': fbeta_score(self.y_true, pr['predictions'], beta=.5),
-                'f2': fbeta_score(self.y_true, pr['predictions'], beta=2),
-            }
-        return self.predictors
+    # def tune_params(self, tuning_params, scoring, n_splits=5, refit=False,
+    #                 verbose=0):
+    #
+    #     if not self.tuning_results:
+    #         self.tuning_results = list()
+    #     tuning_results = self.tuning_results
+    #     for tp in tuning_params:
+    #     # for name, clf, params, n_iter, fit_params in zip(names, classifiers, parameters, n_iters, fit_parameters):
+    #         if verbose:
+    #             print(str(datetime.now()) + ': fitting ' + tp['name'])
+    #         tuner = RandomizedSearchCV(tp['predictor'], tp['parameters'], n_iter=tp['n_iter'], scoring=scoring,
+    #                                    cv=n_splits, refit=refit, verbose=verbose, return_train_score=False,
+    #                                    random_state=1)
+    #         if tp.get('fit_params'):
+    #             tuner.fit(self.feature_values, self.y_true, **tp.get('fit_params'))
+    #         else:
+    #             tuner.fit(self.feature_values, self.y_true)
+    #         tuning_results.append({
+    #             'name': tp['name'],
+    #             'predictor': tp['predictor'],
+    #             'parameters': tp['parameters'],
+    #             'n_iter': tp['n_iter'],
+    #             'fit_params': tp.get('fit_params'),
+    #             'tuner': tuner
+    #         })
+    #
+    #     return tuning_results
+    #
+    # def save_tuning_results(self, file_path):
+    #     with open(file_path, 'wb') as f:
+    #         pickle.dump(self.tuning_results, f)
+    #
+    # def save_best_predictors(self, file_path):
+    #     best_predictors = self.predictors_from_tuning_results()
+    #     with open(file_path, 'wb') as f:
+    #         pickle.dump(best_predictors, f)
+    #
+    # def load_tuning_results(self, file_path):
+    #     with open(file_path, 'rb') as f:
+    #         self.tuning_results = pickle.load(f)
+    #
+    # def load_predictors(self, file_path):
+    #     with open(file_path, 'rb') as f:
+    #         predictors = pickle.load(f)
+    #     self.predictors = [{'name': pr['name'], 'predictor': pr['predictor']} for pr in predictors]
 
-    def score_proba(self):
-        self.predict_proba()
-        for pr in self.predictors:
-            ts_y = dict()
-            for i, (c, p) in enumerate(zip(self.candidates, pr['predictions'])):
-                p_pos = p[1]
-                if c[0] not in ts_y:
-                    ts_y[c[0]] = []
-                ts_y[c[0]].append((i, p_pos))
+    def train_model(self, X_feature_values, y_true):
+        if self.model:
+            self.model.fit(X_feature_values, y_true)
+            return self.model
+        else:
+            raise Exception('No model has been set')
 
-            pred = np.zeros(shape=self.y_true.__len__())
-            for ts, probs in ts_y.items():
-                sorted_probs = sorted(probs, key=lambda x: x[1], reverse=True)
-                for (i, p) in sorted_probs[:1]:
-                    if p > 0.5:
-                        pred[i] = 1
+    def predict(self, X_feature_values):
+        if self.model:
+            y = self.model.predict(X_feature_values)
+            if type(y) is np.ndarray:
+                y = y.tolist()
+            return y
+        else:
+            raise Exception('No model has been set')
 
-            pr['scores'] = {
-                'precision': precision_score(self.y_true, pred),
-                'recall': recall_score(self.y_true, pred),
-                'f1': f1_score(self.y_true, pred),
-                'f.5': fbeta_score(self.y_true, pred, beta=.5),
-                'f2': fbeta_score(self.y_true, pred, beta=2),
-            }
-        return self.predictors
-
-    def save_predictors(self, filepath):
-        predictors = [{'name': pr['name'], 'predictor': pr['predictor']} for pr in self.predictors]
-        with open(filepath, 'wb') as f:
-            pickle.dump(predictors, f)
-
-    def save_scores(self, filepath):
-        scores = [{'name': pr['name'], 'scores': pr['scores']} for pr in self.predictors]
-        with open(filepath, 'wb') as f:
-            pickle.dump(scores, f)
-
-    def tune_params(self, tuning_params, scoring, n_splits=5, refit=False,
-                    verbose=0):
-
-        if not self.tuning_results:
-            self.tuning_results = list()
-        tuning_results = self.tuning_results
-        for tp in tuning_params:
-        # for name, clf, params, n_iter, fit_params in zip(names, classifiers, parameters, n_iters, fit_parameters):
-            if verbose:
-                print(str(datetime.now()) + ': fitting ' + tp['name'])
-            tuner = RandomizedSearchCV(tp['predictor'], tp['parameters'], n_iter=tp['n_iter'], scoring=scoring,
-                                       cv=n_splits, refit=refit, verbose=verbose, return_train_score=False,
-                                       random_state=1)
-            if tp.get('fit_params'):
-                tuner.fit(self.feature_values, self.y_true, **tp.get('fit_params'))
-            else:
-                tuner.fit(self.feature_values, self.y_true)
-            tuning_results.append({
-                'name': tp['name'],
-                'predictor': tp['predictor'],
-                'parameters': tp['parameters'],
-                'n_iter': tp['n_iter'],
-                'fit_params': tp.get('fit_params'),
-                'tuner': tuner
-            })
-
-        return tuning_results
-
-    def save_tuning_results(self, file_path):
-        with open(file_path, 'wb') as f:
-            pickle.dump(self.tuning_results, f)
-
-    def save_best_predictors(self, file_path):
-        best_predictors = self.predictors_from_tuning_results()
-        with open(file_path, 'wb') as f:
-            pickle.dump(best_predictors, f)
-
-    def load_tuning_results(self, file_path):
-        with open(file_path, 'rb') as f:
-            self.tuning_results = pickle.load(f)
-
-    def load_predictors(self, file_path):
-        with open(file_path, 'rb') as f:
-            predictors = pickle.load(f)
-        self.predictors = [{'name': pr['name'], 'predictor': pr['predictor']} for pr in predictors]
+    @staticmethod
+    def score(y_true, y_pred):
+        scores = {
+            'precision': precision_score(y_true, y_pred),
+            'recall': recall_score(y_true, y_pred),
+            'f1': f1_score(y_true, y_pred),
+            'f.5': fbeta_score(y_true, y_pred, beta=.5),
+            'f2': fbeta_score(y_true, y_pred, beta=2),
+        }
+        return scores
