@@ -70,8 +70,13 @@ class ActivityIdentifierDiscoverer:
 
         return timestamp_attrs
 
-    def save_timestamp_attributes(self, timestamp_attrs, path):
+    @staticmethod
+    def save_timestamp_attributes(timestamp_attrs, path):
         json.dump(timestamp_attrs, open(path, mode='wt'))
+
+    @staticmethod
+    def load_timestamp_attributes(path):
+        return json.load(open(path, mode='rt'))
 
     def generate_candidates(self, timestamp_attrs, candidate_types):
         """generates and returns the candidate activity identifiers for each event timestamp.

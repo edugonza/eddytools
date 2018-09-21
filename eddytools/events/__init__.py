@@ -28,32 +28,6 @@ def discover_event_definitions(mm_engine: Engine, mm_meta: MetaData,
 
     timestamp_attrs = aid.get_timestamp_attributes(classes=classes)
 
-    # timestamp_attrs = []
-    #
-    # tb_class: Table = mm_meta.tables['class'].alias('cl')
-    # tb_att_n: Table = mm_meta.tables['attribute_name'].alias('at')
-    # c_att_type: Column = tb_att_n.columns['type']
-    # c_att_name: Column = tb_att_n.columns['name']
-    # c_att_id: Column = tb_att_n.columns['id']
-    # c_cl_name: Column = tb_class.columns['name']
-    #
-    # class_names = []
-    # if not classes:
-    #     cls = get_all_classes(mm_engine, mm_meta)
-    #     class_names = [c['name'] for c in cls]
-    # else:
-    #     class_names = classes
-    #
-    # query = select([c_att_id]).\
-    #     select_from(tb_class.join(tb_att_n)).\
-    #     where(and_(c_att_type == 'timestamp',
-    #                c_cl_name.in_(class_names)))
-    # ts_fields = mm_engine.execute(query)
-    # for ts in ts_fields:
-    #     timestamp_attrs.append(ts[0])
-
-    # print(timestamp_attrs)
-
     candidates = aid.generate_candidates(timestamp_attrs=timestamp_attrs, candidate_types='in_table')
 
     if dump_dir:
@@ -87,7 +61,7 @@ def train_model(mm_engine: Engine, mm_meta: MetaData, y_true_path: str,
     y_true = aid.load_y_true(candidates, y_true_path=y_true_path)
 
     class_weight = compute_class_weight('balanced', [0, 1], y_true)
-    classifier = make_sklearn_pipeline(XGBClassifier(max_depth=3, n_estimators=20, random_state=1,
+    classifier = make_sklearn_pipeline(XGBClassifier(max_depth=2, n_estimators=10, random_state=1,
                                                      scale_pos_weight=class_weight[1]))
 
     aid.set_model(classifier)
