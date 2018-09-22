@@ -169,8 +169,8 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
                     tb_act = mm_meta.tables['activity']
                     tb_ev = mm_meta.tables['event']
 
-                    num_objs = mm_engine.execute(query.count()).scalar()
-                    res = mm_engine.execute(query)
+                    num_objs = conn.execute(query.count()).scalar()
+                    res = conn.execute(query)
 
                     trans: Transaction = conn.begin()
 
@@ -206,6 +206,7 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
                             i += 1
                             if i > 1000:
                                 trans.commit()
+                                trans = conn.begin()
                                 i = 0
 
                         trans.commit()

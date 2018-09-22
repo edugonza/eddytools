@@ -44,6 +44,52 @@ def test_candidates():
     ev.compute_events(mm_engine_modif, mm_meta_modif, [c for p, c in zip(predicted, candidates) if p == 1])
 
 
+def test_candidates_cached():
+    mm_engine_train = ex.create_mm_engine(train_openslex_file_path)
+    mm_meta_train = ex.get_mm_meta(mm_engine_train)
+
+    cached_dir_train = 'output/adw/ev_disc'
+
+    ts_train_path = '{}/timestamps.json'.format(cached_dir_train)
+    candidates_train_path = '{}/candidates.json'.format(cached_dir_train)
+    features_train_path = '{}/features.json'.format(cached_dir_train)
+
+    os.makedirs(dumps_dir, exist_ok=True)
+
+    aid = ev.ActivityIdentifierDiscoverer(engine=mm_engine_train, meta=mm_meta_train,
+                                          model='default')
+
+    if os.path.exists(ts_train_path):
+        timestamp_attrs = aid.load_timestamp_attributes(ts_train_path)
+    else:
+        timestamp_attrs = aid.get_timestamp_attributes()
+        aid.save_timestamp_attributes(timestamp_attrs, ts_train_path)
+    #
+
+    if os.path.exists(candidates_train_path):
+        candidates = aid.load_candidates(candidates_train_path)
+    else:
+        candidates = aid.generate_candidates(timestamp_attrs=timestamp_attrs, candidate_types='in_table')
+        aid.save_candidates(candidates, candidates_train_path)
+    #
+
+    if os.path.exists(features_train_path):
+        X = aid.load_features(features_train_path)
+    else:
+        X = aid.compute_features(candidates, verbose=1)
+        aid.save_features(X, features_train_path)
+    #
+
+    predicted = aid.predict(X)
+
+    shutil.copyfile(train_openslex_file_path, modified_mm)
+
+    mm_engine_modif = ex.create_mm_engine(modified_mm)
+    mm_meta_modif = ex.get_mm_meta(mm_engine_modif)
+
+    ev.compute_events(mm_engine_modif, mm_meta_modif, [c for p, c in zip(predicted, candidates) if p == 1])
+
+
 def test_default_model(openslex=train_openslex_file_path, ground_truth=ground_truth_path):
     mm_engine = ex.create_mm_engine(openslex)
     mm_meta = ex.get_mm_meta(mm_engine)
@@ -173,6 +219,9 @@ def test_trained_model_cached(openslex_train, ground_truth_train,
 if __name__ == '__main__':
     print("Test Training")
     test_candidates()
+
+    print("Test Cached Event Creation")
+    test_candidates_cached()
 
     print("Test Prediction with Default")
     test_default_model()
