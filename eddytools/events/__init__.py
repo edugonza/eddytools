@@ -4,7 +4,8 @@ from sqlalchemy.schema import Table, MetaData, Column
 from sqlalchemy.sql import and_, select, or_, insert
 from eddytools.casenotions import get_all_classes
 from eddytools.events.encoding import Candidate
-from eddytools.events.activity_identifier_discovery import ActivityIdentifierDiscoverer
+from eddytools.events.activity_identifier_discovery import ActivityIdentifierDiscoverer,\
+    CT_TS_FIELD, CT_IN_TABLE, CT_LOOKUP
 from eddytools.events import activity_identifier_feature_functions as evff
 from eddytools.events.activity_identifier_predictors import make_sklearn_pipeline
 import json
@@ -21,6 +22,7 @@ from pprint import pprint
 def discover_event_definitions(mm_engine: Engine, mm_meta: MetaData,
                                classes: list=None,
                                dump_dir: str=None,
+                               candidate_types=(CT_TS_FIELD, CT_IN_TABLE, CT_LOOKUP),
                                model='default',
                                model_path=None) -> (list, ActivityIdentifierDiscoverer):
 
@@ -28,24 +30,62 @@ def discover_event_definitions(mm_engine: Engine, mm_meta: MetaData,
 
     timestamp_attrs = aid.get_timestamp_attributes(classes=classes)
 
-    candidates = aid.generate_candidates(timestamp_attrs=timestamp_attrs, candidate_types='in_table')
+    candidates_ts_field = []
+    candidates_in_table = []
+    candidates_lookup = []
+    predicted_ts_field = []
+    predicted_in_table = []
+    predicted_lookup = []
 
-    if dump_dir:
-        aid.save_candidates(candidates, '{}/candidates.json'.format(dump_dir))
-
-    feature_values = aid.compute_features(candidates, verbose=True)
-
-    if dump_dir:
-        aid.save_features(feature_values, '{}/feature_values.json'.format(dump_dir))
-
-    if model:
-        predicted = aid.predict(feature_values)
+    if CT_TS_FIELD in candidate_types:
+        candidates_ts_field = aid.generate_candidates(timestamp_attrs=timestamp_attrs, candidate_type=CT_TS_FIELD)
+        predicted_ts_field = [1 for c in candidates_ts_field]  # All ts fields can be considered as valid candidates
         if dump_dir:
-            json.dump(predicted, open('{}/predicted_candidates.json'.format(dump_dir), mode='wt'))
-    else:
-        predicted = [1 for c in candidates]
+            aid.save_candidates(candidates_ts_field, '{}/candidates_ts_field.json'.format(dump_dir))
+            json.dump(predicted_ts_field, open('{}/predicted_candidates_ts_field.json'.format(dump_dir), mode='wt'))
 
-    return predicted, candidates, aid
+    if CT_IN_TABLE in candidate_types:
+        candidates_in_table = aid.generate_candidates(timestamp_attrs=timestamp_attrs, candidate_type=CT_IN_TABLE)
+        if dump_dir:
+            aid.save_candidates(candidates_in_table, '{}/candidates_in_table.json'.format(dump_dir))
+
+        feature_values_in_table = aid.compute_features(candidates_in_table, verbose=True)
+        if dump_dir:
+            aid.save_features(feature_values_in_table, '{}/feature_values_in_table.json'.format(dump_dir))
+
+        if model:
+            predicted_in_table = aid.predict(feature_values_in_table, candidate_type=CT_IN_TABLE)
+            if dump_dir:
+                json.dump(predicted_in_table, open('{}/predicted_candidates_in_table.json'.format(dump_dir), mode='wt'))
+        else:
+            predicted_in_table = [1 for c in candidates_in_table]
+
+    if CT_LOOKUP in candidate_types:
+        candidates_lookup = aid.generate_candidates(timestamp_attrs=timestamp_attrs, candidate_type=CT_LOOKUP)
+        if dump_dir:
+            aid.save_candidates(candidates_lookup, '{}/candidates_lookup.json'.format(dump_dir))
+
+        feature_values_lookup = aid.compute_features(candidates_lookup, verbose=True)
+        if dump_dir:
+
+            aid.save_features(feature_values_lookup, '{}/feature_values_lookup.json'.format(dump_dir))
+
+        if model:
+            predicted_lookup = aid.predict(feature_values_lookup, candidate_type=CT_LOOKUP)
+            if dump_dir:
+                json.dump(predicted_lookup, open('{}/predicted_candidates_lookup.json'.format(dump_dir), mode='wt'))
+        else:
+            predicted_lookup = [1 for c in candidates_lookup]
+
+    return {
+        CT_TS_FIELD: {'predicted': predicted_ts_field,
+                      'candidates': candidates_ts_field},
+        CT_IN_TABLE: {'predicted': predicted_in_table,
+                      'candidates': candidates_in_table},
+        CT_LOOKUP: {'predicted': predicted_lookup,
+                    'candidates': candidates_lookup},
+        'aid': aid
+    }
 
 
 def train_model(mm_engine: Engine, mm_meta: MetaData, y_true_path: str,
@@ -53,31 +93,53 @@ def train_model(mm_engine: Engine, mm_meta: MetaData, y_true_path: str,
 
     aid = ActivityIdentifierDiscoverer(engine=mm_engine, meta=mm_meta,
                                        model=None)
+
     timestamp_attrs = aid.get_timestamp_attributes(classes=classes)
 
-    candidates = aid.generate_candidates(timestamp_attrs=timestamp_attrs, candidate_types='in_table')
+    candidates_ts_field = aid.generate_candidates(timestamp_attrs=timestamp_attrs, candidate_type=CT_TS_FIELD)
+    candidates_in_table = aid.generate_candidates(timestamp_attrs=timestamp_attrs, candidate_type=CT_IN_TABLE)
+    candidates_lookup = aid.generate_candidates(timestamp_attrs=timestamp_attrs, candidate_type=CT_LOOKUP)
 
-    X = aid.compute_features(candidates, verbose=1)
-    y_true = aid.load_y_true(candidates, y_true_path=y_true_path)
+    X_in_table = aid.compute_features(candidates_in_table, verbose=1)
+    X_lookup = aid.compute_features(candidates_lookup, verbose=1)
 
-    class_weight = compute_class_weight('balanced', [0, 1], y_true)
-    classifier = make_sklearn_pipeline(XGBClassifier(max_depth=2, n_estimators=10, random_state=1,
-                                                     scale_pos_weight=class_weight[1]))
+    y_true_in_table = aid.load_y_true(candidates_in_table, y_true_path=y_true_path)
+    y_true_lookup = aid.load_y_true(candidates_lookup, y_true_path=y_true_path)
 
-    aid.set_model(classifier)
+    class_weight_in_table = compute_class_weight('balanced', [0, 1], y_true_in_table)
+    class_weight_lookup = compute_class_weight('balanced', [0, 1], y_true_lookup)
 
-    aid.train_model(X, y_true)
+    classifier_in_table = make_sklearn_pipeline(XGBClassifier(max_depth=2, n_estimators=10, random_state=1,
+                                                              scale_pos_weight=class_weight_in_table[1]))
 
-    y_pred = aid.predict(X)
+    classifier_lookup = make_sklearn_pipeline(XGBClassifier(max_depth=2, n_estimators=10, random_state=1,
+                                                            scale_pos_weight=class_weight_lookup[1]))
 
-    scores = aid.score(y_true, y_pred)
+    classifiers = {'in_table': classifier_in_table,
+                   'lookup': classifier_lookup}
 
-    pprint(scores)
+    aid.set_model(classifiers)
+
+    aid.train_model(X_in_table, y_true_in_table, candidate_type=CT_IN_TABLE)
+    aid.train_model(X_lookup, y_true_lookup, candidate_type=CT_LOOKUP)
+
+    y_pred_in_table = aid.predict(X_in_table, candidate_type=CT_IN_TABLE)
+    y_pred_lookup = aid.predict(X_lookup, candidate_type=CT_LOOKUP)
+
+    scores_in_table = aid.score(y_true_in_table, y_pred_in_table)
+
+    print('Scores In Table')
+    pprint(scores_in_table)
+
+    scores_lookup = aid.score(y_true_lookup, y_pred_lookup)
+
+    print('Scores Lookup')
+    pprint(scores_lookup)
 
     if model_output:
         with open(model_output, mode='wb') as f:
-            pickle.dump(classifier, f)
-    return classifier
+            pickle.dump(classifiers, f)
+    return classifiers
 
 
 def ts_to_millis(ts: str):

@@ -6,6 +6,8 @@ __pycache__
 .coverage
 *.swp
 data/sample.slexmm
+data/adw/extracted-adw-mm.slexmm
+data/mm/metamodel-sample.slexmm
 build/
 dist/
 *.egg-info/

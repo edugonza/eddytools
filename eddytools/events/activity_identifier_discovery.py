@@ -16,6 +16,10 @@ from sqlalchemy import create_engine, MetaData
 from pathlib import Path
 import eddytools
 
+CT_TS_FIELD = 'ts_field'
+CT_IN_TABLE = 'in_table'
+CT_LOOKUP = 'lookup'
+
 
 class ActivityIdentifierDiscoverer:
 
@@ -78,7 +82,7 @@ class ActivityIdentifierDiscoverer:
     def load_timestamp_attributes(path):
         return json.load(open(path, mode='rt'))
 
-    def generate_candidates(self, timestamp_attrs, candidate_types):
+    def generate_candidates(self, timestamp_attrs, candidate_type):
         """generates and returns the candidate activity identifiers for each event timestamp.
         Only relationships with one degree of separation are considered."""
         candidates = []
@@ -91,10 +95,10 @@ class ActivityIdentifierDiscoverer:
         t_rels = meta.tables.get('relationship')
         data_types = ['string', 'integer']
 
-        if type(candidate_types) == str:
-            candidate_types = [candidate_types]
+        if type(candidate_type) == str:
+            candidate_type = [candidate_type]
 
-        if 'in_table' in candidate_types:
+        if CT_IN_TABLE in candidate_type:
             q = (select([t_attr_1.c.id.label('ts_attr'), t_attr_2.c.id.label('aid_attr')])
                  .select_from(t_attr_1
                               .join(t_attr_2, t_attr_1.c.class_id == t_attr_2.c.class_id))
@@ -106,7 +110,7 @@ class ActivityIdentifierDiscoverer:
                                             activity_identifier_attribute_id=row['aid_attr'],
                                             relationship_id=None))
 
-        if 'lookup' in candidate_types:
+        if CT_LOOKUP in candidate_type:
             q = (select([t_attr_1.c.id.label('ts_attr'), t_rels.c.id.label('rel_id'), t_attr_2.c.id.label('aid_attr')])
                  .select_from(t_attr_1
                               .join(t_rels, t_attr_1.c.class_id == t_rels.c.source)
@@ -285,16 +289,26 @@ class ActivityIdentifierDiscoverer:
     #         predictors = pickle.load(f)
     #     self.predictors = [{'name': pr['name'], 'predictor': pr['predictor']} for pr in predictors]
 
-    def train_model(self, X_feature_values, y_true):
+    def train_model(self, X_feature_values, y_true, candidate_type):
         if self.model:
-            self.model.fit(X_feature_values, y_true)
+            if candidate_type == CT_IN_TABLE:
+                self.model[CT_IN_TABLE].fit(X_feature_values, y_true)
+            elif candidate_type == CT_LOOKUP:
+                self.model[CT_LOOKUP].fit(X_feature_values, y_true)
+            else:
+                raise Exception('Candidate type unknown')
             return self.model
         else:
             raise Exception('No model has been set')
 
-    def predict(self, X_feature_values):
+    def predict(self, X_feature_values, candidate_type):
         if self.model:
-            y = self.model.predict(X_feature_values)
+            if candidate_type == CT_IN_TABLE:
+                y = self.model[CT_IN_TABLE].predict(X_feature_values)
+            elif candidate_type == CT_LOOKUP:
+                y = self.model[CT_LOOKUP].predict(X_feature_values)
+            else:
+                raise Exception('Candidate type unknown')
             if type(y) is np.ndarray:
                 y = y.tolist()
             return y
