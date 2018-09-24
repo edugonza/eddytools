@@ -41,12 +41,16 @@ def test_candidates():
     mm_engine_modif = ex.create_mm_engine(modified_mm_path)
     mm_meta_modif = ex.get_mm_meta(mm_engine_modif)
 
-    ev.compute_events(mm_engine_modif, mm_meta_modif, [c for p, c in zip(disc[ev.CT_TS_FIELD]['predicted'],
-                                                                         disc[ev.CT_TS_FIELD]['candidates']) if p == 1])
-    ev.compute_events(mm_engine_modif, mm_meta_modif, [c for p, c in zip(disc[ev.CT_IN_TABLE]['predicted'],
-                                                                         disc[ev.CT_IN_TABLE]['candidates']) if p == 1])
-    ev.compute_events(mm_engine_modif, mm_meta_modif, [c for p, c in zip(disc[ev.CT_LOOKUP]['predicted'],
-                                                                         disc[ev.CT_LOOKUP]['candidates']) if p == 1])
+    pred_ts_cand = [c for p, c in zip(disc[ev.CT_TS_FIELD]['predicted'],
+                                      disc[ev.CT_TS_FIELD]['candidates']) if p == 1]
+    pred_in_table_cand = [c for p, c in zip(disc[ev.CT_IN_TABLE]['predicted'],
+                                            disc[ev.CT_IN_TABLE]['candidates']) if p == 1]
+    pred_lookup_cand = [c for p, c in zip(disc[ev.CT_LOOKUP]['predicted'],
+                                          disc[ev.CT_LOOKUP]['candidates']) if p == 1]
+
+    ev.compute_events(mm_engine_modif, mm_meta_modif, pred_ts_cand[:2])
+    ev.compute_events(mm_engine_modif, mm_meta_modif, pred_in_table_cand[:2])
+    ev.compute_events(mm_engine_modif, mm_meta_modif, pred_lookup_cand[:2])
 
 
 def test_candidates_cached():
@@ -115,12 +119,16 @@ def test_candidates_cached():
     mm_engine_modif = ex.create_mm_engine(modified_mm_path)
     mm_meta_modif = ex.get_mm_meta(mm_engine_modif)
 
-    ev.compute_events(mm_engine_modif, mm_meta_modif, [c for p, c in zip(predicted_ts_fields,
-                                                                         candidates_ts_fields) if p == 1])
-    ev.compute_events(mm_engine_modif, mm_meta_modif, [c for p, c in zip(predicted_in_table,
-                                                                         candidates_in_table) if p == 1])
-    ev.compute_events(mm_engine_modif, mm_meta_modif, [c for p, c in zip(predicted_lookup,
-                                                                         candidates_lookup) if p == 1])
+    pred_ts_cand = [c for p, c in zip(predicted_ts_fields,
+                                      candidates_ts_fields) if p == 1]
+    pred_in_table_cand = [c for p, c in zip(predicted_in_table,
+                                            candidates_in_table) if p == 1]
+    pred_lookup_cand = [c for p, c in zip(predicted_lookup,
+                                          candidates_lookup) if p == 1]
+
+    ev.compute_events(mm_engine_modif, mm_meta_modif, pred_ts_cand[:2])
+    ev.compute_events(mm_engine_modif, mm_meta_modif, pred_in_table_cand[:2])
+    ev.compute_events(mm_engine_modif, mm_meta_modif, pred_lookup_cand[:2])
 
 
 def test_default_model(openslex=train_openslex_file_path, ground_truth=ground_truth_path):
