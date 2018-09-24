@@ -62,7 +62,7 @@ def test_candidates_cached():
     features_in_table_path = '{}/features_in_table.json'.format(cached_dir_train)
     features_lookup_path = '{}/features_lookup.json'.format(cached_dir_train)
 
-    os.makedirs(dumps_dir, exist_ok=True)
+    os.makedirs(cached_dir_train, exist_ok=True)
 
     aid = ev.ActivityIdentifierDiscoverer(engine=mm_engine_train, meta=mm_meta_train,
                                           model='default')
@@ -349,17 +349,17 @@ if __name__ == '__main__':
     # print("Test Training")
     # test_candidates()
     #
-    # print("Test Cached Event Creation")
-    # test_candidates_cached()
+    print("Test Cached Event Creation")
+    test_candidates_cached()
     #
     # print("Test Prediction with Default")
     # test_default_model()
 
-    if os.path.isfile(mimic_file_path):
+    # if os.path.isfile(mimic_file_path):
         # print("Test Prediction with Default on MIMICIII")
         # test_default_model(openslex=mimic_file_path, ground_truth=mimic_ground_truth)
 
-        print("Test Prediction with trained model from ADW on MIMICIII (cached)")
-        test_trained_model_cached(openslex_train=train_openslex_file_path, ground_truth_train=ground_truth_path,
-                                  openslex_test=mimic_file_path, ground_truth_test=mimic_ground_truth,
-                                  cached_dir_train='output/adw/ev_disc', cached_dir_test='output/mimic/ev_disc')
+        # print("Test Prediction with trained model from ADW on MIMICIII (cached)")
+        # test_trained_model_cached(openslex_train=train_openslex_file_path, ground_truth_train=ground_truth_path,
+        #                           openslex_test=mimic_file_path, ground_truth_test=mimic_ground_truth,
+        #                           cached_dir_train='output/adw/ev_disc', cached_dir_test='output/mimic/ev_disc')

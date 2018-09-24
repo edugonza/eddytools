@@ -98,6 +98,12 @@ class ActivityIdentifierDiscoverer:
         if type(candidate_type) == str:
             candidate_type = [candidate_type]
 
+        if CT_TS_FIELD in candidate_type:
+            for ts in timestamp_attrs:
+                candidates.append(Candidate(timestamp_attribute_id=ts,
+                                            activity_identifier_attribute_id=None,
+                                            relationship_id=None))
+
         if CT_IN_TABLE in candidate_type:
             q = (select([t_attr_1.c.id.label('ts_attr'), t_attr_2.c.id.label('aid_attr')])
                  .select_from(t_attr_1
