@@ -147,7 +147,8 @@ def ts_to_millis(ts: str):
     return int(d.timestamp() * 1000)
 
 
-def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List[Candidate]):
+def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List[Candidate],
+                   mm_engine_modif: Engine=None, mm_meta_modif: MetaData=None):
 
     # DBSession: Session = scoped_session(sessionmaker())
     #
@@ -155,7 +156,16 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
     # DBSession.configure(bind=mm_engine, autoflush=False, expire_on_commit=False, autocommit=False)
     #
 
-    with mm_engine.connect() as conn:
+    conn = mm_engine.connect()
+
+    if not mm_engine_modif:
+        mm_engine_modif = mm_engine
+        mm_meta_modif = mm_meta
+        conn_modif = conn
+    else:
+        conn_modif = mm_engine_modif.connect()
+
+    with conn and conn_modif:
 
     # conn = DBSession.connection()
 
@@ -226,15 +236,16 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
 
                 if query is not None:
 
-                    tb_etov = mm_meta.tables['event_to_object_version']
-                    tb_ai = mm_meta.tables['activity_instance']
-                    tb_act = mm_meta.tables['activity']
-                    tb_ev = mm_meta.tables['event']
+                    tb_etov = mm_meta_modif.tables['event_to_object_version']
+                    tb_ai = mm_meta_modif.tables['activity_instance']
+                    tb_act = mm_meta_modif.tables['activity']
+                    tb_ev = mm_meta_modif.tables['event']
 
                     num_objs = conn.execute(query.count()).scalar()
                     res = conn.execute(query)
 
-                    trans: Transaction = conn.begin()
+                    trans: Transaction = conn_modif.begin()
+                    # trans: Transaction = conn.begin()
 
                     map_act = {}
 
@@ -250,25 +261,25 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
                             # Create activities, activity instances, events, and connection to object versions
                             if not act_id:
                                 query = tb_act.insert().values(name=an_v)
-                                act_id = int(conn.execute(query).lastrowid)
+                                act_id = int(conn_modif.execute(query).lastrowid)
                                 map_act[an_v] = act_id
 
                             query = tb_ai.insert().values(activity_id=act_id)
-                            ai_id = int(conn.execute(query).lastrowid)
+                            ai_id = int(conn_modif.execute(query).lastrowid)
 
                             query = tb_ev.insert().values(activity_instance_id=ai_id,
                                                           timestamp=ts_to_millis(ts_v))
 
-                            ev_id = int(conn.execute(query).lastrowid)
+                            ev_id = int(conn_modif.execute(query).lastrowid)
 
                             query = tb_etov.insert().values(event_id=ev_id,
                                                             object_version_id=ov_id)
-                            conn.execute(query)
+                            conn_modif.execute(query)
 
                             i += 1
                             if i > 1000:
                                 trans.commit()
-                                trans = conn.begin()
+                                trans = conn_modif.begin()
                                 i = 0
 
                         trans.commit()
