@@ -329,12 +329,12 @@ def test_trained_model_cached(openslex_train, ground_truth_train,
     pred_test_in_table = aid_test.predict(feature_values_in_table_test, candidate_type=ev.CT_IN_TABLE)
     pred_test_lookup = aid_test.predict(feature_values_lookup_test, candidate_type=ev.CT_LOOKUP)
 
-    y_true_in_table = aid.load_y_true(candidates_test_in_table, ground_truth_test)
-    y_true_lookup = aid.load_y_true(candidates_test_lookup, ground_truth_test)
-    y_true_ts_fields = aid.load_y_true(candidates_test_ts_fields, ground_truth_test)
-    scores_ts_fields = aid.score(y_true_ts_fields, pred_test_ts_fields)
-    scores_in_table = aid.score(y_true_in_table, pred_test_in_table)
-    scores_lookup = aid.score(y_true_lookup, pred_test_lookup)
+    y_true_in_table = aid_test.load_y_true(candidates_test_in_table, ground_truth_test)
+    y_true_lookup = aid_test.load_y_true(candidates_test_lookup, ground_truth_test)
+    y_true_ts_fields = aid_test.load_y_true(candidates_test_ts_fields, ground_truth_test)
+    scores_ts_fields = aid_test.score(y_true_ts_fields, pred_test_ts_fields)
+    scores_in_table = aid_test.score(y_true_in_table, pred_test_in_table)
+    scores_lookup = aid_test.score(y_true_lookup, pred_test_lookup)
     print('Score Ts Fields')
     pprint(scores_ts_fields)
 
