@@ -291,4 +291,3 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
                 # Without a timestamp attribute we cannot create events
                 raise(Exception('Without a timestamp attribute we cannot create events: {}'.format(edc)))
 
-    DBSession.commit()
