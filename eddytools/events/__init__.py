@@ -156,14 +156,10 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
 
     conn: Connection = DBSession.connection()
 
-    # conn = mm_engine.connect()
-    #
-    # if not mm_engine_modif:
-    #     mm_engine_modif = mm_engine
-    #     mm_meta_modif = mm_meta
-    #     conn_modif = conn
-    # else:
-    #     conn_modif = mm_engine_modif.connect()
+    c: Connection = mm_engine.raw_connection()
+    cursor = c.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.close()
 
     for ed in tqdm(event_definitions, desc='Event definitions'):
         edc = Candidate(timestamp_attribute_id=ed[0],
