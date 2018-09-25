@@ -147,27 +147,25 @@ def ts_to_millis(ts: str):
     return int(d.timestamp() * 1000)
 
 
-def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List[Candidate],
-                   mm_engine_modif: Engine=None, mm_meta_modif: MetaData=None):
+def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List[Candidate]):
 
-    # DBSession: Session = scoped_session(sessionmaker())
+    DBSession: Session = scoped_session(sessionmaker())
+
+    DBSession.remove()
+    DBSession.configure(bind=mm_engine, autoflush=False, expire_on_commit=False)
+
+    conn = DBSession.connection()
+
+    # conn = mm_engine.connect()
     #
-    # DBSession.remove()
-    # DBSession.configure(bind=mm_engine, autoflush=False, expire_on_commit=False, autocommit=False)
-    #
+    # if not mm_engine_modif:
+    #     mm_engine_modif = mm_engine
+    #     mm_meta_modif = mm_meta
+    #     conn_modif = conn
+    # else:
+    #     conn_modif = mm_engine_modif.connect()
 
-    conn = mm_engine.connect()
-
-    if not mm_engine_modif:
-        mm_engine_modif = mm_engine
-        mm_meta_modif = mm_meta
-        conn_modif = conn
-    else:
-        conn_modif = mm_engine_modif.connect()
-
-    with conn and conn_modif:
-
-    # conn = DBSession.connection()
+    with conn:
 
         for ed in tqdm(event_definitions, desc='Event definitions'):
             edc = Candidate(timestamp_attribute_id=ed[0],
@@ -236,16 +234,13 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
 
                 if query is not None:
 
-                    tb_etov = mm_meta_modif.tables['event_to_object_version']
-                    tb_ai = mm_meta_modif.tables['activity_instance']
-                    tb_act = mm_meta_modif.tables['activity']
-                    tb_ev = mm_meta_modif.tables['event']
+                    tb_etov = mm_meta.tables['event_to_object_version']
+                    tb_ai = mm_meta.tables['activity_instance']
+                    tb_act = mm_meta.tables['activity']
+                    tb_ev = mm_meta.tables['event']
 
                     num_objs = conn.execute(query.count()).scalar()
                     res = conn.execute(query)
-
-                    trans: Transaction = conn_modif.begin()
-                    # trans: Transaction = conn.begin()
 
                     map_act = {}
 
@@ -261,32 +256,32 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
                             # Create activities, activity instances, events, and connection to object versions
                             if not act_id:
                                 query = tb_act.insert().values(name=an_v)
-                                act_id = int(conn_modif.execute(query).lastrowid)
+                                act_id = int(conn.execute(query).lastrowid)
                                 map_act[an_v] = act_id
 
                             query = tb_ai.insert().values(activity_id=act_id)
-                            ai_id = int(conn_modif.execute(query).lastrowid)
+                            ai_id = int(conn.execute(query).lastrowid)
 
                             query = tb_ev.insert().values(activity_instance_id=ai_id,
                                                           timestamp=ts_to_millis(ts_v))
 
-                            ev_id = int(conn_modif.execute(query).lastrowid)
+                            ev_id = int(conn.execute(query).lastrowid)
 
                             query = tb_etov.insert().values(event_id=ev_id,
                                                             object_version_id=ov_id)
-                            conn_modif.execute(query)
+                            conn.execute(query)
 
-                            i += 1
-                            if i > 1000:
-                                trans.commit()
-                                trans = conn_modif.begin()
-                                i = 0
+                            # i += 1
+                            # if i > 1000:
+                            #     trans.commit()
+                            #     trans = conn_modif.begin()
+                            #     i = 0
 
-                        trans.commit()
-                        trans.close()
+                        # trans.commit()
+                        # trans.close()
 
                     except Exception as err:
-                        trans.rollback()
+                        # trans.rollback()
                         raise(err)
 
                 else:
@@ -296,4 +291,4 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
                 # Without a timestamp attribute we cannot create events
                 raise(Exception('Without a timestamp attribute we cannot create events: {}'.format(edc)))
 
-    # DBSession.commit()
+    DBSession.commit()

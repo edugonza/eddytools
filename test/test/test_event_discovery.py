@@ -126,12 +126,9 @@ def test_candidates_cached():
     pred_lookup_cand = [c for p, c in zip(predicted_lookup,
                                           candidates_lookup) if p == 1]
 
-    ev.compute_events(mm_engine_train, mm_meta_train, pred_ts_cand[:2],
-                      mm_engine_modif=mm_engine_modif, mm_meta_modif=mm_meta_modif)
-    ev.compute_events(mm_engine_train, mm_meta_train, pred_in_table_cand[:2],
-                      mm_engine_modif=mm_engine_modif, mm_meta_modif=mm_meta_modif)
-    ev.compute_events(mm_engine_train, mm_meta_train, pred_lookup_cand[:2],
-                      mm_engine_modif=mm_engine_modif, mm_meta_modif=mm_meta_modif)
+    ev.compute_events(mm_engine_train, mm_meta_train, pred_ts_cand[:2])
+    ev.compute_events(mm_engine_train, mm_meta_train, pred_in_table_cand[:2])
+    ev.compute_events(mm_engine_train, mm_meta_train, pred_lookup_cand[:2])
 
 
 def test_default_model(openslex=train_openslex_file_path, ground_truth=ground_truth_path):
@@ -213,7 +210,7 @@ def test_trained_model_cached(openslex_train, ground_truth_train,
     mm_meta_train = ex.get_mm_meta(mm_engine_train)
 
     aid = ev.ActivityIdentifierDiscoverer(engine=mm_engine_train, meta=mm_meta_train,
-                                       model=None)
+                                          model=None)
 
     if os.path.exists(ts_train_path):
         timestamp_attrs = aid.load_timestamp_attributes(ts_train_path)
