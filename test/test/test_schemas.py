@@ -5,8 +5,8 @@ from sqlalchemy.schema import MetaData, Table, Column,\
 import numpy as np
 
 
-def test_db_schema_stats():
-    meta: MetaData = pickle.load(open('output/adw/dumps/metadata.pickle', mode='rb'))
+def test_db_schema_stats(meta_path):
+    meta: MetaData = pickle.load(open(meta_path, mode='rb'))
 
     colcount = []
     tscolcount = []
@@ -42,4 +42,10 @@ def test_db_schema_stats():
 
 
 if __name__ == '__main__':
-    test_db_schema_stats()
+    dir = 'output/adw/dumps/metadata.pickle'
+
+    import sys
+    if sys.argv.__len__() > 1:
+        dir = sys.argv[1]
+
+    test_db_schema_stats(meta_path=dir)
