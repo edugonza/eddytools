@@ -160,10 +160,10 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
     for c in [conn, conn2]:
         cursor = c.connection.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.execute("PRAGMA optimize")
+        # cursor.execute("PRAGMA optimize")
         cursor.execute("PRAGMA read_uncommitted = false")
         cursor.execute("PRAGMA foreign_keys=false")
-        cursor.execute("PRAGMA synchronous=OFF")
+        # cursor.execute("PRAGMA synchronous=OFF")
         cursor.execute("PRAGMA temp_store = MEMORY")
         cursor.execute("PRAGMA cache_size = 100000")
         cursor.close()
@@ -246,7 +246,7 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
                 map_act = {}
 
                 try:
-                    i = 0
+                    # i = 0
                     for r in tqdm(res, total=num_objs, desc='Events'):
                         ov_id = int(r['ov_id'])
                         ts_v = str(r['ts_v'])
@@ -254,26 +254,32 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
 
                         act_id = map_act.get(an_v, None)
 
-                        # Create activities, activity instances, events, and connection to object versions
-                        if not act_id:
-                            query = tb_act.insert().values(name=an_v)
-                            act_id = int(conn.execute(query).lastrowid)
-                            map_act[an_v] = act_id
+                        try:
+                            ts_in_millis = ts_to_millis(ts_v)
 
-                        query = tb_ai.insert().values(activity_id=act_id)
-                        ai_id = int(conn.execute(query).lastrowid)
+                            # Create activities, activity instances, events, and connection to object versions
+                            if not act_id:
+                                query = tb_act.insert().values(name=an_v)
+                                act_id = int(conn.execute(query).lastrowid)
+                                map_act[an_v] = act_id
 
-                        query = tb_ev.insert().values(activity_instance_id=ai_id,
-                                                      timestamp=ts_to_millis(ts_v))
+                            query = tb_ai.insert().values(activity_id=act_id)
+                            ai_id = int(conn.execute(query).lastrowid)
 
-                        ev_id = int(conn.execute(query).lastrowid)
+                            query = tb_ev.insert().values(activity_instance_id=ai_id,
+                                                          timestamp=ts_in_millis)
 
-                        query = tb_etov.insert().values(event_id=ev_id,
-                                                        object_version_id=ov_id)
-                        conn.execute(query)
+                            ev_id = int(conn.execute(query).lastrowid)
 
+                            query = tb_etov.insert().values(event_id=ev_id,
+                                                            object_version_id=ov_id)
+                            conn.execute(query)
+
+                        except:
+                            pass
                         # i += 1
                         # if i > 1000:
+                            # conn.commit()
                         #     trans.commit()
                         #     trans = conn_modif.begin()
                         #     i = 0
@@ -282,6 +288,7 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
                     # trans.close()
 
                 except Exception as err:
+                    conn.rollback()
                     # trans.rollback()
                     raise(err)
 
