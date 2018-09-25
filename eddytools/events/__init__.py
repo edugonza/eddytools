@@ -149,15 +149,24 @@ def ts_to_millis(ts: str):
 
 def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List[Candidate]):
 
-    DBSession: Session = scoped_session(sessionmaker())
+    DBSession: scoped_session = scoped_session(sessionmaker(bind=mm_engine))
 
-    DBSession.remove()
-    DBSession.configure(bind=mm_engine, autoflush=False, expire_on_commit=False)
+    # DBSession.remove()
+    # DBSession.configure(bind=mm_engine, autoflush=False, expire_on_commit=False)
 
     conn: Connection = DBSession.connection()
-    cursor = conn.connection.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL")
-    cursor.close()
+    conn2: Connection = DBSession.connection()
+
+    for c in [conn, conn2]:
+        cursor = c.connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA optimize")
+        cursor.execute("PRAGMA read_uncommitted = false")
+        cursor.execute("PRAGMA foreign_keys=false")
+        cursor.execute("PRAGMA synchronous=OFF")
+        cursor.execute("PRAGMA temp_store = MEMORY")
+        cursor.execute("PRAGMA cache_size = 100000")
+        cursor.close()
 
     for ed in tqdm(event_definitions, desc='Event definitions'):
         edc = Candidate(timestamp_attribute_id=ed[0],
@@ -231,8 +240,8 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
                 tb_act = mm_meta.tables['activity']
                 tb_ev = mm_meta.tables['event']
 
-                num_objs = conn.execute(query.count()).scalar()
-                res = conn.execute(query)
+                num_objs = None  # conn2.execute(query.count()).scalar()
+                res = conn2.execute(query)
 
                 map_act = {}
 
