@@ -155,9 +155,7 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
     DBSession.configure(bind=mm_engine, autoflush=False, expire_on_commit=False)
 
     conn: Connection = DBSession.connection()
-
-    c: Connection = mm_engine.raw_connection()
-    cursor = c.cursor()
+    cursor = conn.connection.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.close()
 
