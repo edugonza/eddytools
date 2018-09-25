@@ -154,7 +154,7 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
     DBSession.remove()
     DBSession.configure(bind=mm_engine, autoflush=False, expire_on_commit=False)
 
-    conn = DBSession.connection()
+    conn: Connection = DBSession.connection()
 
     # conn = mm_engine.connect()
     #
@@ -165,129 +165,128 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
     # else:
     #     conn_modif = mm_engine_modif.connect()
 
-    with conn:
+    for ed in tqdm(event_definitions, desc='Event definitions'):
+        edc = Candidate(timestamp_attribute_id=ed[0],
+                        activity_identifier_attribute_id=ed[1],
+                        relationship_id=ed[2])
+        ts_id = edc.timestamp_attribute_id
+        ac_at_id = edc.activity_identifier_attribute_id
+        rs_id = edc.relationship_id
 
-        for ed in tqdm(event_definitions, desc='Event definitions'):
-            edc = Candidate(timestamp_attribute_id=ed[0],
-                            activity_identifier_attribute_id=ed[1],
-                            relationship_id=ed[2])
-            ts_id = edc.timestamp_attribute_id
-            ac_at_id = edc.activity_identifier_attribute_id
-            rs_id = edc.relationship_id
-
-            if ts_id:
-                query = None
-                if ac_at_id:
-                    if rs_id:
-                        # It is a look-up table
-                        tb_ov = mm_meta.tables['object_version']
-                        tb_av = mm_meta.tables['attribute_value']
-                        tb_rel = mm_meta.tables['relation']
-
-                        tb_ov_ts = tb_ov.alias('OV_TS')
-                        tb_ov_an = tb_ov.alias('OV_AN')
-                        tb_av_ts = tb_av.alias('TS_AV')
-                        tb_av_an = tb_av.alias('AN_AV')
-
-                        query = select([tb_ov_ts.c.id.label('ov_id'),
-                                        tb_av_ts.c.value.label('ts_v'),
-                                        tb_av_an.c.value.label('an_v')]). \
-                            where(and_(tb_ov_ts.c.id == tb_av_ts.c.object_version_id,
-                                       tb_av_ts.c.attribute_name_id == ts_id,
-                                       tb_ov_an.c.id == tb_av_an.c.object_version_id,
-                                       tb_av_an.c.attribute_name_id == ac_at_id,
-                                       # or_(and_(tb_ov_ts.c.id == tb_rel.c.source_object_version_id,
-                                       #          tb_ov_an.c.id == tb_rel.c.target_object_version_id),
-                                       #     and_(tb_ov_ts.c.id == tb_rel.c.target_object_version_id,
-                                       #          tb_ov_an.c.id == tb_rel.c.source_object_version_id)),
-                                       tb_ov_ts.c.id == tb_rel.c.source_object_version_id,
-                                       tb_ov_an.c.id == tb_rel.c.target_object_version_id,
-                                       tb_rel.c.relationship_id == rs_id))
-                    else:
-                        # It is in-table
-                        tb_ov = mm_meta.tables['object_version']
-                        tb_av = mm_meta.tables['attribute_value']
-
-                        tb_av_ts = tb_av.alias('TS_AV')
-                        tb_av_an = tb_av.alias('AN_AV')
-
-                        query = select([tb_ov.c.id.label('ov_id'),
-                                        tb_av_ts.c.value.label('ts_v'),
-                                        tb_av_an.c.value.label('an_v')]). \
-                            where(and_(tb_ov.c.id == tb_av_ts.c.object_version_id,
-                                       tb_ov.c.id == tb_av_an.c.object_version_id,
-                                       tb_av_ts.c.attribute_name_id == ts_id,
-                                       tb_av_an.c.attribute_name_id == ac_at_id))
-                else:
-                    # It is a column-name event: Create one event for each timestamp
-                    # with the column name as activity name
+        if ts_id:
+            query = None
+            if ac_at_id:
+                if rs_id:
+                    # It is a look-up table
                     tb_ov = mm_meta.tables['object_version']
                     tb_av = mm_meta.tables['attribute_value']
-                    tb_an = mm_meta.tables['attribute_name']
+                    tb_rel = mm_meta.tables['relation']
+
+                    tb_ov_ts = tb_ov.alias('OV_TS')
+                    tb_ov_an = tb_ov.alias('OV_AN')
+                    tb_av_ts = tb_av.alias('TS_AV')
+                    tb_av_an = tb_av.alias('AN_AV')
+
+                    query = select([tb_ov_ts.c.id.label('ov_id'),
+                                    tb_av_ts.c.value.label('ts_v'),
+                                    tb_av_an.c.value.label('an_v')]). \
+                        where(and_(tb_ov_ts.c.id == tb_av_ts.c.object_version_id,
+                                   tb_av_ts.c.attribute_name_id == ts_id,
+                                   tb_ov_an.c.id == tb_av_an.c.object_version_id,
+                                   tb_av_an.c.attribute_name_id == ac_at_id,
+                                   # or_(and_(tb_ov_ts.c.id == tb_rel.c.source_object_version_id,
+                                   #          tb_ov_an.c.id == tb_rel.c.target_object_version_id),
+                                   #     and_(tb_ov_ts.c.id == tb_rel.c.target_object_version_id,
+                                   #          tb_ov_an.c.id == tb_rel.c.source_object_version_id)),
+                                   tb_ov_ts.c.id == tb_rel.c.source_object_version_id,
+                                   tb_ov_an.c.id == tb_rel.c.target_object_version_id,
+                                   tb_rel.c.relationship_id == rs_id))
+                else:
+                    # It is in-table
+                    tb_ov = mm_meta.tables['object_version']
+                    tb_av = mm_meta.tables['attribute_value']
+
+                    tb_av_ts = tb_av.alias('TS_AV')
+                    tb_av_an = tb_av.alias('AN_AV')
 
                     query = select([tb_ov.c.id.label('ov_id'),
-                                    tb_av.c.value.label('ts_v'),
-                                    tb_an.c.name.label('an_v')]).\
-                        where(and_(tb_ov.c.id == tb_av.c.object_version_id,
-                                   tb_av.c.attribute_name_id == ts_id,
-                                   tb_an.c.id == ts_id))
+                                    tb_av_ts.c.value.label('ts_v'),
+                                    tb_av_an.c.value.label('an_v')]). \
+                        where(and_(tb_ov.c.id == tb_av_ts.c.object_version_id,
+                                   tb_ov.c.id == tb_av_an.c.object_version_id,
+                                   tb_av_ts.c.attribute_name_id == ts_id,
+                                   tb_av_an.c.attribute_name_id == ac_at_id))
+            else:
+                # It is a column-name event: Create one event for each timestamp
+                # with the column name as activity name
+                tb_ov = mm_meta.tables['object_version']
+                tb_av = mm_meta.tables['attribute_value']
+                tb_an = mm_meta.tables['attribute_name']
 
-                if query is not None:
+                query = select([tb_ov.c.id.label('ov_id'),
+                                tb_av.c.value.label('ts_v'),
+                                tb_an.c.name.label('an_v')]).\
+                    where(and_(tb_ov.c.id == tb_av.c.object_version_id,
+                               tb_av.c.attribute_name_id == ts_id,
+                               tb_an.c.id == ts_id))
 
-                    tb_etov = mm_meta.tables['event_to_object_version']
-                    tb_ai = mm_meta.tables['activity_instance']
-                    tb_act = mm_meta.tables['activity']
-                    tb_ev = mm_meta.tables['event']
+            if query is not None:
 
-                    num_objs = conn.execute(query.count()).scalar()
-                    res = conn.execute(query)
+                tb_etov = mm_meta.tables['event_to_object_version']
+                tb_ai = mm_meta.tables['activity_instance']
+                tb_act = mm_meta.tables['activity']
+                tb_ev = mm_meta.tables['event']
 
-                    map_act = {}
+                num_objs = conn.execute(query.count()).scalar()
+                res = conn.execute(query)
 
-                    try:
-                        i = 0
-                        for r in tqdm(res, total=num_objs, desc='Events'):
-                            ov_id = int(r['ov_id'])
-                            ts_v = str(r['ts_v'])
-                            an_v = str(r['an_v'])
+                map_act = {}
 
-                            act_id = map_act.get(an_v, None)
+                try:
+                    i = 0
+                    for r in tqdm(res, total=num_objs, desc='Events'):
+                        ov_id = int(r['ov_id'])
+                        ts_v = str(r['ts_v'])
+                        an_v = str(r['an_v'])
 
-                            # Create activities, activity instances, events, and connection to object versions
-                            if not act_id:
-                                query = tb_act.insert().values(name=an_v)
-                                act_id = int(conn.execute(query).lastrowid)
-                                map_act[an_v] = act_id
+                        act_id = map_act.get(an_v, None)
 
-                            query = tb_ai.insert().values(activity_id=act_id)
-                            ai_id = int(conn.execute(query).lastrowid)
+                        # Create activities, activity instances, events, and connection to object versions
+                        if not act_id:
+                            query = tb_act.insert().values(name=an_v)
+                            act_id = int(conn.execute(query).lastrowid)
+                            map_act[an_v] = act_id
 
-                            query = tb_ev.insert().values(activity_instance_id=ai_id,
-                                                          timestamp=ts_to_millis(ts_v))
+                        query = tb_ai.insert().values(activity_id=act_id)
+                        ai_id = int(conn.execute(query).lastrowid)
 
-                            ev_id = int(conn.execute(query).lastrowid)
+                        query = tb_ev.insert().values(activity_instance_id=ai_id,
+                                                      timestamp=ts_to_millis(ts_v))
 
-                            query = tb_etov.insert().values(event_id=ev_id,
-                                                            object_version_id=ov_id)
-                            conn.execute(query)
+                        ev_id = int(conn.execute(query).lastrowid)
 
-                            # i += 1
-                            # if i > 1000:
-                            #     trans.commit()
-                            #     trans = conn_modif.begin()
-                            #     i = 0
+                        query = tb_etov.insert().values(event_id=ev_id,
+                                                        object_version_id=ov_id)
+                        conn.execute(query)
 
-                        # trans.commit()
-                        # trans.close()
+                        # i += 1
+                        # if i > 1000:
+                        #     trans.commit()
+                        #     trans = conn_modif.begin()
+                        #     i = 0
 
-                    except Exception as err:
-                        # trans.rollback()
-                        raise(err)
+                    # trans.commit()
+                    # trans.close()
 
-                else:
-                    raise(Exception('No query for: {}'.format(edc)))
+                except Exception as err:
+                    # trans.rollback()
+                    raise(err)
 
             else:
-                # Without a timestamp attribute we cannot create events
-                raise(Exception('Without a timestamp attribute we cannot create events: {}'.format(edc)))
+                raise(Exception('No query for: {}'.format(edc)))
 
+        else:
+            # Without a timestamp attribute we cannot create events
+            raise(Exception('Without a timestamp attribute we cannot create events: {}'.format(edc)))
+
+    DBSession.commit()

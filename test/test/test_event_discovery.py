@@ -126,9 +126,9 @@ def test_candidates_cached():
     pred_lookup_cand = [c for p, c in zip(predicted_lookup,
                                           candidates_lookup) if p == 1]
 
-    ev.compute_events(mm_engine_train, mm_meta_train, pred_ts_cand[:2])
-    ev.compute_events(mm_engine_train, mm_meta_train, pred_in_table_cand[:2])
-    ev.compute_events(mm_engine_train, mm_meta_train, pred_lookup_cand[:2])
+    ev.compute_events(mm_engine_modif, mm_meta_modif, pred_ts_cand[:2])
+    ev.compute_events(mm_engine_modif, mm_meta_modif, pred_in_table_cand[:2])
+    ev.compute_events(mm_engine_modif, mm_meta_modif, pred_lookup_cand[:2])
 
 
 def test_default_model(openslex=train_openslex_file_path, ground_truth=ground_truth_path):
