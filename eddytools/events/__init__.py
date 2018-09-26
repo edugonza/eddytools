@@ -17,6 +17,7 @@ from datetime import datetime
 from tqdm import tqdm
 import pickle
 from pprint import pprint
+import ciso8601
 
 
 def discover_event_definitions(mm_engine: Engine, mm_meta: MetaData,
@@ -143,7 +144,8 @@ def train_model(mm_engine: Engine, mm_meta: MetaData, y_true_path: str,
 
 
 def ts_to_millis(ts: str):
-    d: datetime = dateparser.parse(ts)
+    # d: datetime = dateparser.parse(ts)
+    d = ciso8601.parse_datetime(ts)
     return int(d.timestamp() * 1000)
 
 
