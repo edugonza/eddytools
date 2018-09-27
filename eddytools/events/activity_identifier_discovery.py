@@ -92,6 +92,8 @@ class ActivityIdentifierDiscoverer:
 
         t_attr_1 = meta.tables.get('attribute_name').alias()
         t_attr_2 = meta.tables.get('attribute_name').alias()
+        t_cl_1 = meta.tables.get('class').alias()
+        t_cl_2 = meta.tables.get('class').alias()
         t_rels = meta.tables.get('relationship')
         data_types = ['string', 'integer']
 
@@ -99,34 +101,61 @@ class ActivityIdentifierDiscoverer:
             candidate_type = [candidate_type]
 
         if CT_TS_FIELD in candidate_type:
-            for ts in timestamp_attrs:
-                candidates.append(Candidate(timestamp_attribute_id=ts,
+
+            q = select([t_attr_1.c.id.label('ts_attr'),
+                        t_attr_1.c.name.label('ts_attr_name'),
+                        t_cl_1.c.name.label('cl_ts_name')])\
+                .where(and_(t_attr_1.c.id.in_(timestamp_attrs),
+                            t_attr_1.c.class_id == t_cl_1.c.id))
+            result = engine.execute(q)
+
+            for row in result:
+                candidates.append(Candidate(timestamp_attribute_id=row['ts_attr'],
                                             activity_identifier_attribute_id=None,
-                                            relationship_id=None))
+                                            relationship_id=None,
+                                            ts_at_name='{}.{}'.format(row['cl_ts_name'], row['ts_attr_name']),
+                                            act_at_name=None,
+                                            rs_name=None))
 
         if CT_IN_TABLE in candidate_type:
-            q = (select([t_attr_1.c.id.label('ts_attr'), t_attr_2.c.id.label('aid_attr')])
+            q = (select([t_attr_1.c.id.label('ts_attr'),
+                         t_attr_2.c.id.label('aid_attr'),
+                         t_attr_1.c.name.label('ts_attr_name'),
+                         t_attr_2.c.name.label('aid_attr_name'),
+                         t_cl_1.c.name.label('cl_ts_name')])
                  .select_from(t_attr_1
-                              .join(t_attr_2, t_attr_1.c.class_id == t_attr_2.c.class_id))
+                              .join(t_attr_2, t_attr_1.c.class_id == t_attr_2.c.class_id)
+                              .join(t_cl_1, t_attr_1.c.class_id == t_cl_1.c.id))
                  .where(and_(t_attr_1.c.id.in_(timestamp_attrs), t_attr_2.c.type.in_(data_types))))
             result = engine.execute(q)
 
             for row in result:
                 candidates.append(Candidate(timestamp_attribute_id=row['ts_attr'],
                                             activity_identifier_attribute_id=row['aid_attr'],
-                                            relationship_id=None))
+                                            relationship_id=None,
+                                            ts_at_name='{}.{}'.format(row['cl_ts_name'], row['ts_attr_name']),
+                                            act_at_name='{}.{}'.format(row['cl_ts_name'], row['aid_attr_name']),
+                                            rs_name=None))
 
         if CT_LOOKUP in candidate_type:
-            q = (select([t_attr_1.c.id.label('ts_attr'), t_rels.c.id.label('rel_id'), t_attr_2.c.id.label('aid_attr')])
+            q = (select([t_attr_1.c.id.label('ts_attr'), t_rels.c.id.label('rel_id'), t_attr_2.c.id.label('aid_attr'),
+                         t_attr_1.c.name.label('ts_attr_name'), t_rels.c.name.label('rs_name'),
+                         t_attr_2.c.name.label('aid_attr_name'),
+                         t_cl_1.c.name.label('cl_ts_name'), t_cl_2.c.name.label('cl_aid_name')])
                  .select_from(t_attr_1
                               .join(t_rels, t_attr_1.c.class_id == t_rels.c.source)
-                              .join(t_attr_2, t_rels.c.target == t_attr_2.c.class_id))
+                              .join(t_attr_2, t_rels.c.target == t_attr_2.c.class_id)
+                              .join(t_cl_1, t_attr_1.c.class_id == t_cl_1.c.id)
+                              .join(t_cl_2, t_attr_2.c.class_id == t_cl_2.c.id))
                  .where(and_(t_attr_1.c.id.in_(timestamp_attrs), t_attr_2.c.type.in_(data_types))))
             result = engine.execute(q)
             for row in result:
                 candidates.append(Candidate(timestamp_attribute_id=row['ts_attr'],
                                             activity_identifier_attribute_id=row['aid_attr'],
-                                            relationship_id=row['rel_id']))
+                                            relationship_id=row['rel_id'],
+                                            ts_at_name='{}.{}'.format(row['cl_ts_name'], row['ts_attr_name']),
+                                            act_at_name='{}.{}'.format(row['cl_aid_name'], row['aid_attr_name']),
+                                            rs_name=row['rs_name']))
 
         return candidates
 

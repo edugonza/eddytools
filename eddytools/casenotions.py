@@ -16,6 +16,8 @@ from datetime import datetime
 from sqlitedict import SqliteDict
 from frozendict import frozendict
 import yaml
+import pandas as pd
+import pickle
 
 
 class CaseNotion(dict):
@@ -79,7 +81,8 @@ class CaseNotion(dict):
 
 
 def load_candidates(candidates_path):
-    candidates_mem = yaml.load(open(candidates_path, 'rt'))
+    # candidates_mem = yaml.safe_load(open(candidates_path, 'rt'))
+    candidates_mem = pickle.load(open(candidates_path, 'rb'))
     return candidates_mem
 
 
@@ -88,7 +91,8 @@ def save_candidates(candidates, candidates_path):
     for c in candidates:
         candidates_mem.append(candidates[c])
 
-    yaml.dump(candidates_mem, open(candidates_path, 'wt'))
+    # yaml.safe_dump(candidates_mem, open(candidates_path, 'wt'))
+    pickle.dump(candidates_mem, open(candidates_path, 'wb'))
     return candidates_mem
 
 
@@ -1355,3 +1359,48 @@ def _estimate_a_b(mode: float, min_val: float, max_val: float):
     b = max([b, 1])
 
     return a, b
+
+
+def log_to_dataframe(mm_engine: Engine, mm_meta: MetaData, log_id):
+    df = pd.DataFrame()
+
+    tb_ctl: Table = mm_meta.tables['case_to_log']
+    tb_ai: Table = mm_meta.tables['activity_instance']
+    tb_aitc: Table = mm_meta.tables['activity_instance_to_case']
+    tb_ev: Table = mm_meta.tables['event']
+    tb_act: Table = mm_meta.tables['activity']
+    tb_evatn: Table = mm_meta.tables['event_attribute_name']
+    tb_evatv: Table = mm_meta.tables['event_attribute_value']
+
+    query = select([tb_ev.c.id, tb_act.c.name, tb_ev.c.lifecycle, tb_ev.c.resource,
+                    tb_ev.c.timestamp, tb_aitc.c.case_id, tb_ctl.c.log_id]). \
+        where(tb_ctl.c.log_id == log_id).\
+        select_from(tb_ev.
+                    join(tb_ai, onclause=tb_ev.c.activity_instance_id == tb_ai.c.id).
+                    join(tb_act, onclause=tb_ai.c.activity_id == tb_act.c.id).
+                    join(tb_aitc, onclause=(tb_ai.c.id == tb_aitc.c.activity_instance_id)).
+                    join(tb_ctl, onclause=(tb_ctl.c.case_id == tb_aitc.c.case_id)))
+
+    print(query)
+
+    res: ResultProxy = mm_engine.execute(query)
+
+    print(res.keys())
+    for r in res:
+        print(r)
+
+
+def list_logs(mm_engine: Engine, mm_meta: MetaData):
+
+    logs = {}
+
+    tb_logs: Table = mm_meta.tables['log']
+
+    query = tb_logs.select()
+
+    res = mm_engine.execute(query)
+
+    for r in res:
+        logs[r['id']] = r['name']
+
+    return logs

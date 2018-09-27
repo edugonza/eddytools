@@ -173,7 +173,10 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
     for ed in tqdm(event_definitions, desc='Event definitions'):
         edc = Candidate(timestamp_attribute_id=ed[0],
                         activity_identifier_attribute_id=ed[1],
-                        relationship_id=ed[2])
+                        relationship_id=ed[2],
+                        ts_at_name=ed[3],
+                        act_at_name=ed[4],
+                        rs_name=ed[5])
         ts_id = edc.timestamp_attribute_id
         ac_at_id = edc.activity_identifier_attribute_id
         rs_id = edc.relationship_id

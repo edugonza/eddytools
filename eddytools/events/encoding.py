@@ -3,7 +3,10 @@ from collections import namedtuple
 
 Candidate = namedtuple('Candidate', ('timestamp_attribute_id',
                                      'activity_identifier_attribute_id',
-                                     'relationship_id'))
+                                     'relationship_id',
+                                     'ts_at_name',
+                                     'act_at_name',
+                                     'rs_name'))
 
 
 class Encoder:
