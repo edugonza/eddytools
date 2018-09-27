@@ -78,6 +78,20 @@ class CaseNotion(dict):
         return str(d).__hash__()
 
 
+def load_candidates(candidates_path):
+    candidates_mem = yaml.load(open(candidates_path, 'rt'))
+    return candidates_mem
+
+
+def save_candidates(candidates, candidates_path):
+    candidates_mem = []
+    for c in candidates:
+        candidates_mem.append(candidates[c])
+
+    yaml.dump(candidates_mem, open(candidates_path, 'wt'))
+    return candidates_mem
+
+
 def compute_candidates(mm_engine: Engine, min_rel_threshold=0, max_length_path=5, cache_dir: str='.') -> dict:
 
     candidates = SqliteDict(
@@ -1161,9 +1175,9 @@ def compute_prediction_from_bounds(bounds: dict, w_sp_lb: float, w_lod_lb: float
     lod_ub = bounds['lod_ub']
     ae_ub = bounds['ae_ub']
 
-    sp_pred = np.add(np.multiply(sp_lb, w_sp_lb), np.multiply(sp_ub, w_sp_ub))
-    lod_pred = np.add(np.multiply(lod_lb, w_lod_lb), np.multiply(lod_ub, w_lod_ub))
-    ae_pred = np.add(np.multiply(ae_lb, w_ae_lb), np.multiply(ae_ub, w_ae_ub))
+    sp_pred = np.add(np.multiply(sp_lb, w_sp_lb), np.multiply(sp_ub, w_sp_ub)).tolist()
+    lod_pred = np.add(np.multiply(lod_lb, w_lod_lb), np.multiply(lod_ub, w_lod_ub)).tolist()
+    ae_pred = np.add(np.multiply(ae_lb, w_ae_lb), np.multiply(ae_ub, w_ae_ub)).tolist()
 
     predictions = {
         'sp': sp_pred,
@@ -1213,11 +1227,15 @@ def compute_ranking(metrics: dict, mode_sp: float, max_sp: int, min_sp: int,
     lod_score = np.divide(beta.pdf(lod_scld, lod_a, lod_b), max_val_beta_lod)
     ae_score = np.divide(beta.pdf(ae_scld, ae_a, ae_b), max_val_beta_ae)
 
-    scores = np.add(np.multiply(sp_score, w_sp),
-                    np.multiply(lod_score, w_lod),
-                    np.multiply(ae_score, w_ae))
+    # In case sp is 0, score should be 0
+    sp_binary = [1 if v > 0.0 else 0 for v in sp]
 
-    ranking = np.argsort(-scores)
+    scores = np.multiply(np.add(np.multiply(sp_score, w_sp),
+                                np.multiply(lod_score, w_lod),
+                                np.multiply(ae_score, w_ae)),
+                         sp_binary)
+
+    ranking = np.argsort(-scores).tolist()
 
     return ranking
 
@@ -1227,7 +1245,8 @@ def scale_minmax(values: list, max_v: float, min_v: float):
     u = np.subtract(values, min_v)
     b = max_v - min_v
 
-    scld = np.divide(u, b)
+    scld: np.ndarray = np.divide(u, b)
+    np.nan_to_num(scld, copy=False)
 
     return scld
 

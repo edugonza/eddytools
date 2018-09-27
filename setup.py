@@ -23,4 +23,5 @@ setup(
     packages=['eddytools'],
     package_data={'eddytools': ['resources']},
     include_package_data=True,
+    scripts=['bin/eddytools'],
 )
