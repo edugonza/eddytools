@@ -16,6 +16,7 @@ Options:
 
 """
 
+import eddytools
 import eddytools.extraction as ex
 import eddytools.casenotions as cn
 import eddytools.events as ev
@@ -228,7 +229,7 @@ def export_log(mm_path, log_id, output_dir):
 
 if __name__ == '__main__':
 
-    arguments = docopt(__doc__, version='0.9-alpha')
+    arguments = docopt(__doc__, version=eddytools.__version__)
 
     if arguments['events']:
         input_mm = Path(arguments['<input_db>'])
