@@ -144,7 +144,7 @@ def train_model(mm_engine: Engine, mm_meta: MetaData, y_true_path: str,
 
 
 def ts_to_millis(ts: str):
-    # d: datetime = dateparser.parse(ts)
+    # d: datetime = dateparser.parse(ts) took too long. ciso8601 is much faster
     d = ciso8601.parse_datetime(ts)
     return int(d.timestamp() * 1000)
 
@@ -152,9 +152,6 @@ def ts_to_millis(ts: str):
 def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List[Candidate]):
 
     DBSession: scoped_session = scoped_session(sessionmaker(bind=mm_engine))
-
-    # DBSession.remove()
-    # DBSession.configure(bind=mm_engine, autoflush=False, expire_on_commit=False)
 
     conn: Connection = DBSession.connection()
     conn2: Connection = DBSession.connection()
@@ -272,11 +269,11 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
                         ov_id = int(r['ov_id'])
                         ts_v = str(r['ts_v'])
                         an_v = str(r['an_v'])
-                        at_n = str(r['at_n'])
+                        at_n = r['at_n']
                         cl_v = str(r['cl_v'])
 
                         if at_n:
-                            activity_name = '{}.{}.{}'.format(cl_v, at_n, an_v)
+                            activity_name = '{}.{}.{}'.format(cl_v, str(at_n), an_v)
                         else:
                             activity_name = '{}.{}'.format(cl_v, an_v)
 
@@ -305,19 +302,9 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
 
                         except:
                             pass
-                        # i += 1
-                        # if i > 1000:
-                            # conn.commit()
-                        #     trans.commit()
-                        #     trans = conn_modif.begin()
-                        #     i = 0
-
-                    # trans.commit()
-                    # trans.close()
 
                 except Exception as err:
                     conn.rollback()
-                    # trans.rollback()
                     raise(err)
 
             else:
