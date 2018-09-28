@@ -3,16 +3,21 @@
 Usage:
   eddytools events <input_db> <output_dir> [--build-events]
   eddytools cases <input_db> <output_dir> [--build-logs --topk=K]
-  eddytools logs <input_db> (--list | --log_id <log_id> <output_file>)
+  eddytools logs <input_db> (--list | --info_log=LOG_ID | --export_log=LOG_ID --o=OUTPUT_FILE | --print_cn=LOG_ID --o=OUTPUT_FILE [--show])
   eddytools (-h | --help)
   eddytools --version
 
 Options:
-  -h --help        Show this screen.
-  --version        Show version.
-  --build-events   Build events based on discovered event definitions [default: false].
-  --build-logs     Build event logs from case notions [default: false].
-  --topk=K         Show and build only top K case notions and logs
+  -h --help             Show this screen.
+  --version             Show version.
+  --build-events        Build events based on discovered event definitions [default: false].
+  --build-logs          Build event logs from case notions [default: false].
+  --topk=K              Show and build only top K case notions and logs
+  --info_log=LOG_ID     Show information about the log
+  --export_log=LOG_ID   Export the log in csv format in the file specified by --o=OUTPUT_FILE
+  --print_cn=LOG_ID     Generate a dot file with the case notion used to build log LOG_ID
+  --o=OUTPUT_FILE       Output file for a log or a case notion
+  --show                Visualize the case notion graph in a pdf visualizer
 
 """
 
@@ -27,6 +32,7 @@ from docopt import docopt
 import json
 from pprint import pprint
 import pandas as pd
+from graphviz import Digraph
 
 
 def disc_and_build(mm: Path, new_mm: Path, dump_dir: Path, build_events=False):
@@ -221,12 +227,68 @@ def list_logs(mm_path):
     pprint(logs)
 
 
+def info_log(mm_path, log_id):
+    mm_engine = ex.create_mm_engine(mm_path)
+    mm_meta = ex.get_mm_meta(mm_engine)
+    info = cn.log_info(mm_engine, mm_meta, log_id)
+    pprint(info)
+
+
 def export_log(mm_path, log_id, output_file):
     mm_engine = ex.create_mm_engine(mm_path)
     mm_meta = ex.get_mm_meta(mm_engine)
 
     df: pd.DataFrame = cn.log_to_dataframe(mm_engine=mm_engine, mm_meta=mm_meta, log_id=log_id)
     df.to_csv(output_file, index_label='idx')
+
+
+def print_cn(mm_path, log_id, output_file, view):
+    mm_engine = ex.create_mm_engine(mm_path)
+    mm_meta = ex.get_mm_meta(mm_engine)
+    info = cn.log_info(mm_engine, mm_meta, log_id)
+    if 'case_notion' in info['attributes']:
+        dump_cn_dot(mm_engine, mm_meta, info['attributes']['case_notion'], output_file, view)
+    else:
+        raise Exception('No case notion to show')
+
+
+def dump_cn_dot(mm_engine, mm_meta, case_notion: cn.CaseNotion, output_file, view):
+
+    classes = cn.get_all_classes(mm_engine, mm_meta)
+
+    dcl = {}
+    for c in classes:
+        dcl[int(c['id'])] = str(c['name'])
+
+    root_id = case_notion.get_root_id()
+    root_name = dcl[root_id]
+
+    graph = Digraph(comment='Case notion',
+                    graph_attr={'splines': 'true',
+                                'overlap': 'false',
+                                'esep': '3',
+                                'root': str(root_id)})
+
+    graph.node(str(root_id), label=root_name, shape='box', style="setlinewidth(3)")
+    for c in case_notion.get_classes_ids():
+        if not c == root_id:
+            if c in case_notion.get_converging_classes():
+                graph.node(str(c), label=dcl[c], shape='box', peripheries="2")
+            else:
+                graph.node(str(c), label=dcl[c], shape='box')
+
+    for c_p in case_notion.get_children():
+        for c_s in case_notion.get_children()[c_p]:
+            graph.edge(str(c_p), str(c_s))
+
+    for rs in case_notion.get_relationships():
+        source = str(rs['source'])
+        target = str(rs['target'])
+        label = ''  # str(rs['name'])
+        graph.edge(source, target, label=label, style='dashed')
+
+    graph.save(filename=output_file)
+    graph.render(view=view)
 
 
 if __name__ == '__main__':
@@ -254,7 +316,15 @@ if __name__ == '__main__':
         input_mm = Path(arguments['<input_db>'])
         if arguments['--list']:
             list_logs(input_mm)
-        elif arguments['--log_id']:
-            log_id = arguments['<log_id>']
-            output_file = Path(arguments['<output_file>'])
+        elif arguments['--info_log']:
+            log_id = arguments['--info_log']
+            info_log(input_mm, log_id)
+        elif arguments['--print_cn']:
+            log_id = arguments['--print_cn']
+            output_file = Path(arguments['--o'])
+            show = arguments['--show']
+            print_cn(input_mm, log_id, output_file, show)
+        elif arguments['--export_log']:
+            log_id = arguments['--export_log']
+            output_file = Path(arguments['--o'])
             export_log(input_mm, log_id, output_file)

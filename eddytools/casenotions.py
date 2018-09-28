@@ -1415,3 +1415,40 @@ def list_logs(mm_engine: Engine, mm_meta: MetaData):
         logs[r['id']] = r['name']
 
     return logs
+
+
+def log_info(mm_engine: Engine, mm_meta: MetaData, log_id: int):
+
+    info = {'id': log_id,
+            'attributes': {}}
+
+    tb_logs: Table = mm_meta.tables['log']
+    tb_latn: Table = mm_meta.tables['log_attribute_name']
+    tb_latv: Table = mm_meta.tables['log_attribute_value']
+
+    query = select([tb_logs.c.name.label('name'),
+                    tb_latn.c.name.label('at_name'),
+                    tb_latv.c.value.label('at_v')]).\
+        select_from(tb_logs.
+                    join(tb_latv, onclause=(tb_latv.c.log_id == tb_logs.c.id)).
+                    join(tb_latn, onclause=(tb_latn.c.id == tb_latv.c.log_attribute_name_id))). \
+        where(tb_logs.c.id == log_id)
+
+    res = mm_engine.execute(query)
+
+    for r in res:
+        info['name'] = r['name']
+        info['attributes'][r['at_name']] = r['at_v']
+
+    tb_ctl: Table = mm_meta.tables['case_to_log']
+    query = select([distinct(tb_ctl.c.case_id)]).where(tb_ctl.c.log_id == log_id)
+
+    res = mm_engine.execute(query).scalar()
+
+    info['cases'] = res
+
+    if 'case_notion' in info['attributes']:
+        cn = yaml.load(info['attributes']['case_notion'])
+        info['attributes']['case_notion'] = cn
+
+    return info
