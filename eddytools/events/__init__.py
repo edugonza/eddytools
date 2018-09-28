@@ -1,7 +1,7 @@
-from sqlalchemy.engine import Engine, Connection, Transaction
+from sqlalchemy.engine import Engine, Connection, Transaction, ResultProxy
 from sqlalchemy.orm import scoped_session, sessionmaker, Session
 from sqlalchemy.schema import Table, MetaData, Column
-from sqlalchemy.sql import and_, select, or_, insert
+from sqlalchemy.sql import and_, select, or_, insert, literal_column
 from eddytools.casenotions import get_all_classes
 from eddytools.events.encoding import Candidate
 from eddytools.events.activity_identifier_discovery import ActivityIdentifierDiscoverer,\
@@ -189,6 +189,8 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
                     tb_ov = mm_meta.tables['object_version']
                     tb_av = mm_meta.tables['attribute_value']
                     tb_rel = mm_meta.tables['relation']
+                    tb_an = mm_meta.tables['attribute_name']
+                    tb_cl = mm_meta.tables['class']
 
                     tb_ov_ts = tb_ov.alias('OV_TS')
                     tb_ov_an = tb_ov.alias('OV_AN')
@@ -197,7 +199,9 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
 
                     query = select([tb_ov_ts.c.id.label('ov_id'),
                                     tb_av_ts.c.value.label('ts_v'),
-                                    tb_av_an.c.value.label('an_v')]). \
+                                    tb_av_an.c.value.label('an_v'),
+                                    tb_an.c.name.label('at_n'),
+                                    tb_cl.c.name.label('cl_v')]). \
                         where(and_(tb_ov_ts.c.id == tb_av_ts.c.object_version_id,
                                    tb_av_ts.c.attribute_name_id == ts_id,
                                    tb_ov_an.c.id == tb_av_an.c.object_version_id,
@@ -208,35 +212,47 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
                                    #          tb_ov_an.c.id == tb_rel.c.source_object_version_id)),
                                    tb_ov_ts.c.id == tb_rel.c.source_object_version_id,
                                    tb_ov_an.c.id == tb_rel.c.target_object_version_id,
-                                   tb_rel.c.relationship_id == rs_id))
+                                   tb_rel.c.relationship_id == rs_id,
+                                   tb_cl.c.id == tb_an.c.class_id,
+                                   tb_an.c.id == ac_at_id))
                 else:
                     # It is in-table
                     tb_ov = mm_meta.tables['object_version']
                     tb_av = mm_meta.tables['attribute_value']
+                    tb_an = mm_meta.tables['attribute_name']
+                    tb_cl = mm_meta.tables['class']
 
                     tb_av_ts = tb_av.alias('TS_AV')
                     tb_av_an = tb_av.alias('AN_AV')
 
                     query = select([tb_ov.c.id.label('ov_id'),
                                     tb_av_ts.c.value.label('ts_v'),
-                                    tb_av_an.c.value.label('an_v')]). \
+                                    tb_av_an.c.value.label('an_v'),
+                                    tb_an.c.name.label('at_n'),
+                                    tb_cl.c.name.label('cl_v')]). \
                         where(and_(tb_ov.c.id == tb_av_ts.c.object_version_id,
                                    tb_ov.c.id == tb_av_an.c.object_version_id,
                                    tb_av_ts.c.attribute_name_id == ts_id,
-                                   tb_av_an.c.attribute_name_id == ac_at_id))
+                                   tb_av_an.c.attribute_name_id == ac_at_id,
+                                   tb_an.c.class_id == tb_cl.c.id,
+                                   tb_an.c.id == ac_at_id))
             else:
                 # It is a column-name event: Create one event for each timestamp
                 # with the column name as activity name
                 tb_ov = mm_meta.tables['object_version']
                 tb_av = mm_meta.tables['attribute_value']
                 tb_an = mm_meta.tables['attribute_name']
+                tb_cl = mm_meta.tables['class']
 
                 query = select([tb_ov.c.id.label('ov_id'),
                                 tb_av.c.value.label('ts_v'),
-                                tb_an.c.name.label('an_v')]).\
+                                tb_an.c.name.label('an_v'),
+                                literal_column("NULL").label('at_n'),
+                                tb_cl.c.name.label('cl_v')]).\
                     where(and_(tb_ov.c.id == tb_av.c.object_version_id,
                                tb_av.c.attribute_name_id == ts_id,
-                               tb_an.c.id == ts_id))
+                               tb_an.c.id == ts_id,
+                               tb_an.c.class_id == tb_cl.c.id))
 
             if query is not None:
 
@@ -246,7 +262,7 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
                 tb_ev = mm_meta.tables['event']
 
                 num_objs = None  # conn2.execute(query.count()).scalar()
-                res = conn2.execute(query)
+                res: ResultProxy = conn2.execute(query)
 
                 map_act = {}
 
@@ -256,6 +272,13 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
                         ov_id = int(r['ov_id'])
                         ts_v = str(r['ts_v'])
                         an_v = str(r['an_v'])
+                        at_n = str(r['at_n'])
+                        cl_v = str(r['cl_v'])
+
+                        if at_n:
+                            activity_name = '{}.{}.{}'.format(cl_v, at_n, an_v)
+                        else:
+                            activity_name = '{}.{}'.format(cl_v, an_v)
 
                         act_id = map_act.get(an_v, None)
 
@@ -264,7 +287,7 @@ def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List
 
                             # Create activities, activity instances, events, and connection to object versions
                             if not act_id:
-                                query = tb_act.insert().values(name=an_v)
+                                query = tb_act.insert().values(name=activity_name)
                                 act_id = int(conn.execute(query).lastrowid)
                                 map_act[an_v] = act_id
 

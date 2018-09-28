@@ -18,6 +18,7 @@ from frozendict import frozendict
 import yaml
 import pandas as pd
 import pickle
+import ciso8601
 
 
 class CaseNotion(dict):
@@ -1362,7 +1363,6 @@ def _estimate_a_b(mode: float, min_val: float, max_val: float):
 
 
 def log_to_dataframe(mm_engine: Engine, mm_meta: MetaData, log_id):
-    df = pd.DataFrame()
 
     tb_ctl: Table = mm_meta.tables['case_to_log']
     tb_ai: Table = mm_meta.tables['activity_instance']
@@ -1381,13 +1381,24 @@ def log_to_dataframe(mm_engine: Engine, mm_meta: MetaData, log_id):
                     join(tb_aitc, onclause=(tb_ai.c.id == tb_aitc.c.activity_instance_id)).
                     join(tb_ctl, onclause=(tb_ctl.c.case_id == tb_aitc.c.case_id)))
 
-    print(query)
-
     res: ResultProxy = mm_engine.execute(query)
 
-    print(res.keys())
-    for r in res:
-        print(r)
+    data_dict = {}
+
+    for k in res.keys():
+        data_dict[k] = []
+
+    for i, r in enumerate(res):
+        for k in res.keys():
+            if k == 'timestamp':
+                ts: datetime = datetime.fromtimestamp(r[k] / 1000.0)
+                data_dict[k].append(ts.__str__())
+            else:
+                data_dict[k].append(r[k])
+
+    df = pd.DataFrame(data=data_dict)
+
+    return df
 
 
 def list_logs(mm_engine: Engine, mm_meta: MetaData):

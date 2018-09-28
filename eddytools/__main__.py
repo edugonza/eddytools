@@ -26,6 +26,7 @@ from pathlib import Path
 from docopt import docopt
 import json
 from pprint import pprint
+import pandas as pd
 
 
 def disc_and_build(mm: Path, new_mm: Path, dump_dir: Path, build_events=False):
@@ -220,11 +221,12 @@ def list_logs(mm_path):
     pprint(logs)
 
 
-def export_log(mm_path, log_id, output_dir):
+def export_log(mm_path, log_id, output_file):
     mm_engine = ex.create_mm_engine(mm_path)
     mm_meta = ex.get_mm_meta(mm_engine)
 
-    cn.log_to_dataframe(mm_engine=mm_engine, mm_meta=mm_meta, log_id=log_id)
+    df: pd.DataFrame = cn.log_to_dataframe(mm_engine=mm_engine, mm_meta=mm_meta, log_id=log_id)
+    df.to_csv(output_file, index_label='idx')
 
 
 if __name__ == '__main__':
