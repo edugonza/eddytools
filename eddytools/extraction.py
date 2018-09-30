@@ -97,6 +97,11 @@ def create_db_engine(dialect=None, host=None, username=None, password=None, port
     return engine
 
 
+def create_db_engine_from_url(db_url):
+    engine = create_engine(db_url, pool_pre_ping=True)
+    return engine
+
+
 def get_metadata(db_engine: Engine, schemas=None) -> MetaData:
     metadata = MetaData(bind=db_engine)
     metadata.tables = dict()
@@ -190,13 +195,14 @@ def insert_metadata(mm_conn, mm_meta: MetaData, db_meta: MetaData, dm_name, clas
         for c in tqdm(db_classes, desc='Inserting Class Relationships'):
             fkcs = db_meta.tables.get(c).foreign_key_constraints
             for fkc in fkcs:
-                rel_table = mm_meta.tables.get('relationship')
-                rel_values = {'source': class_map[c],
-                              'target': class_map[fkc.referred_table.fullname],
-                              'name': fkc.name}
-                res_ins_rel = insert_values(mm_conn, rel_table, rel_values)
-                rel_id = res_ins_rel.inserted_primary_key[0]
-                rel_map[(c, fkc.name)] = rel_id
+                if fkc.referred_table.fullname in class_map:
+                    rel_table = mm_meta.tables.get('relationship')
+                    rel_values = {'source': class_map[c],
+                                  'target': class_map[fkc.referred_table.fullname],
+                                  'name': fkc.name}
+                    res_ins_rel = insert_values(mm_conn, rel_table, rel_values)
+                    rel_id = res_ins_rel.inserted_primary_key[0]
+                    rel_map[(c, fkc.name)] = rel_id
 
         trans.commit()
     except:
@@ -492,6 +498,22 @@ def extract_to_mm(openslex_file_path, connection_params, cache_dir, db_engine=No
             db_meta = get_metadata(db_engine, schemas)
         mm_meta = get_mm_meta(mm_engine)
         dm_name = connection_params.get('database', 'DataModel')
+    except Exception as e:
+        raise e
+
+    extraction_from_db(openslex_file_path, cache_dir, db_engine, overwrite,
+                       classes, metadata)
+
+
+def extraction_from_db(openslex_file_path, cache_dir, db_engine=None,
+                       overwrite=False, classes=None, metadata=None):
+    # connect to the OpenSLEX mm
+    try:
+        create_mm(openslex_file_path, overwrite)
+        mm_engine = create_mm_engine(openslex_file_path)
+        db_meta = metadata
+        mm_meta = get_mm_meta(mm_engine)
+        dm_name = 'datamodel'
     except Exception as e:
         raise e
 

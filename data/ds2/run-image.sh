@@ -7,5 +7,5 @@ docker run --name ds2 -p $HOST_PORT:5432 \
 	-e POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
 	-d postgres/ds2
 sleep 20
-./check_health
+./check_health.sh
 docker exec -u postgres ds2 /setup.sh

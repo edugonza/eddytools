@@ -1,6 +1,10 @@
 """eddytools
 
 Usage:
+  eddytools schema list-schemas <db_url>
+  eddytools schema list-classes <db_url>
+  eddytools schema discover <db_url> <output_dir> [--classes=CLASSES_FILE] [--max-fields=K] [--sampling=SAMPLES] [--resume]
+  eddytools extract <db_url> <output_dir> [<schema_dir>] [--classes=CLASSES_FILE]
   eddytools events <input_db> <output_dir> [--build-events]
   eddytools cases <input_db> <output_dir> [--build-logs --topk=K]
   eddytools logs <input_db> (--list | --info_log=LOG_ID | --export_log=LOG_ID --o=OUTPUT_FILE | --print_cn=LOG_ID --o=OUTPUT_FILE [--show])
@@ -8,16 +12,19 @@ Usage:
   eddytools --version
 
 Options:
-  -h --help             Show this screen.
-  --version             Show version.
-  --build-events        Build events based on discovered event definitions [default: false].
-  --build-logs          Build event logs from case notions [default: false].
-  --topk=K              Show and build only top K case notions and logs
-  --info_log=LOG_ID     Show information about the log
-  --export_log=LOG_ID   Export the log in csv format in the file specified by --o=OUTPUT_FILE
-  --print_cn=LOG_ID     Generate a dot file with the case notion used to build log LOG_ID
-  --o=OUTPUT_FILE       Output file for a log or a case notion
-  --show                Visualize the case notion graph in a pdf visualizer
+  -h --help                 Show this screen.
+  --version                 Show version.
+  --build-events            Build events based on discovered event definitions [default: false].
+  --build-logs              Build event logs from case notions [default: false].
+  --topk=K                  Show and build only top K case notions and logs
+  --info_log=LOG_ID         Show information about the log
+  --export_log=LOG_ID       Export the log in csv format in the file specified by --o=OUTPUT_FILE
+  --print_cn=LOG_ID         Generate a dot file with the case notion used to build log LOG_ID
+  --o=OUTPUT_FILE           Output file for a log or a case notion
+  --show                    Visualize the case notion graph in a pdf visualizer
+  --classes=CLASSES_FILE    File in Json format with a list of class names to extract. If omitted, all will be extracted
+  --max-fields=K              Maximum length of keys to discover [default: 4]
+  --sampling=SAMPLES        Number of rows per table to sample for schema discovery [default: 0]
 
 """
 
@@ -25,6 +32,10 @@ import eddytools
 import eddytools.extraction as ex
 import eddytools.casenotions as cn
 import eddytools.events as ev
+import eddytools.schema as es
+from sqlalchemy.engine import Engine
+from sqlalchemy.schema import MetaData
+from sqlalchemy import inspect
 import os
 import shutil
 from pathlib import Path
@@ -33,6 +44,7 @@ import json
 from pprint import pprint
 import pandas as pd
 from graphviz import Digraph
+import pickle
 
 
 def disc_and_build(mm: Path, new_mm: Path, dump_dir: Path, build_events=False):
@@ -291,11 +303,82 @@ def dump_cn_dot(mm_engine, mm_meta, case_notion: cn.CaseNotion, output_file, vie
     graph.render(view=view)
 
 
+def discover_schema(db_url, output_dir, classes_file, max_fields_key=4, resume=False, sampling=0):
+    db_engine: Engine = ex.create_db_engine_from_url(db_url)
+    if classes_file:
+        classes = json.load(open(classes_file, 'rt'))
+    else:
+        classes = None
+    es.full_discovery_from_engine(db_engine, dump_dir=output_dir, classes=classes,
+                                  max_fields_key=max_fields_key,
+                                  resume=resume, sampling=sampling)
+
+
+def extract_data(db_url, output_dir, schema_dir=None, classes_file=None):
+    db_engine: Engine = ex.create_db_engine_from_url(db_url)
+    if schema_dir:
+        metadata = pickle.load(open(Path(schema_dir,'metadata_filtered.pickle'), mode='rb'))
+
+        discovered_pks = json.load(open(Path(schema_dir,'pruned_pks.json'), mode='rt'))
+        discovered_fks = json.load(open(Path(schema_dir,'filtered_fks.json'), mode='rt'))
+
+        db_meta = es.create_custom_metadata(db_engine, None,
+                                            discovered_pks, discovered_fks, metadata=metadata)
+    else:
+        db_meta: MetaData = ex.get_metadata(db_engine)
+
+    if classes_file:
+        classes = json.load(open(classes_file, 'rt'))
+    else:
+        classes = None
+
+    db_engine.dispose()
+    ex.extraction_from_db(Path(output_dir, 'mm-extracted.slexmm'), output_dir,
+                          db_engine, overwrite=True, classes=classes,
+                          metadata=db_meta)
+
+
+def schema_list_schemas(db_url):
+    db_engine: Engine = ex.create_db_engine_from_url(db_url)
+    insp = inspect(db_engine)
+    schemas = insp.get_schema_names()
+    schemas_json = json.dumps(schemas, indent=True)
+    print(schemas_json)
+
+
+def schema_list_classes(db_url):
+    db_engine: Engine = ex.create_db_engine_from_url(db_url)
+    metadata: MetaData = ex.get_metadata(db_engine)
+    classes = es.retrieve_classes(metadata)
+    classes_json = json.dumps(classes, indent=True)
+    print(classes_json)
+
+
 if __name__ == '__main__':
 
     arguments = docopt(__doc__, version=eddytools.__version__)
 
-    if arguments['events']:
+    if arguments['schema']:
+        db_url = arguments['<db_url>']
+        if arguments['list-schemas']:
+            schema_list_schemas(db_url)
+        elif arguments['list-classes']:
+            schema_list_classes(db_url)
+        elif arguments['discover']:
+            output_dir = arguments['<output_dir>']
+            classes_file = arguments['--classes']
+            max_fields = int(arguments['--max-fields'])
+            resume = arguments['--resume']
+            sampling = int(arguments['--sampling'])
+            discover_schema(db_url, output_dir, classes_file, max_fields_key=max_fields,
+                            resume=resume, sampling=sampling)
+    elif arguments['extract']:
+        db_url = arguments['<db_url>']
+        schema_dir = arguments['<schema_dir>']
+        output_dir = arguments['<output_dir>']
+        classes_file = arguments['--classes']
+        extract_data(db_url, output_dir, schema_dir, classes_file)
+    elif arguments['events']:
         input_mm = Path(arguments['<input_db>'])
         output_dir = Path(arguments['<output_dir>'])
         output_mm = Path(output_dir, 'mm-modif.slexmm')

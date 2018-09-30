@@ -731,6 +731,16 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
                    classes_for_pk=None, schemas=None, classes_for_fk=None,
                    max_fields_key=4, resume=False, sampling: int=0):
 
+    db_engine = ex.create_db_engine(**connection_params)
+
+    full_discovery_from_engine(db_engine, dump_dir, None,
+                               classes_for_pk, schemas, classes_for_fk,
+                               max_fields_key, resume, sampling)
+
+
+def full_discovery_from_engine(db_engine, dump_dir='output/dumps/', classes=None,
+                               classes_for_pk=None, schemas=None, classes_for_fk=None,
+                               max_fields_key=4, resume=False, sampling: int = 0):
     try:
 
         dump_tmp = '{}/tmp/'.format(dump_dir)
@@ -767,8 +777,6 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
         os.makedirs(dump_tmp_fks, exist_ok=True)
         os.makedirs(dump_tmp_cache, exist_ok=True)
 
-        db_engine = ex.create_db_engine(**connection_params)
-
         if resume and exists(metadata_fname):
             metadata = pickle.load(open(metadata_fname, mode='rb'))
         else:
@@ -799,7 +807,9 @@ def full_discovery(connection_params, dump_dir='output/dumps/',
             retrieved_pks = retrieve_pks(metadata)
             json.dump(retrieved_pks, open(retrieved_pks_fname, mode='wt'), indent=True)
 
-        if resume and exists(all_classes_fname):
+        if classes:
+            all_classes = classes
+        elif resume and exists(all_classes_fname):
             all_classes = json.load(open(all_classes_fname, mode='rt'))
         else:
             all_classes = retrieve_classes(metadata)
