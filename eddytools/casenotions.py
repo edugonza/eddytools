@@ -1232,13 +1232,17 @@ def compute_ranking(metrics: dict, mode_sp: float, max_sp: int, min_sp: int,
     lod_score = np.divide(beta.pdf(lod_scld, lod_a, lod_b), max_val_beta_lod)
     ae_score = np.divide(beta.pdf(ae_scld, ae_a, ae_b), max_val_beta_ae)
 
-    # In case sp is 0, score should be 0
-    sp_binary = [1 if v > 0.0 else 0 for v in sp]
+    # # In case sp is 0, score should be 0
+    # sp_binary = [1 if v > 0.0 else 0 for v in sp]
 
-    scores = np.multiply(np.add(np.multiply(sp_score, w_sp),
-                                np.multiply(lod_score, w_lod),
-                                np.multiply(ae_score, w_ae)),
-                         sp_binary)
+    weights = [w_sp, w_lod, w_ae]
+    scores = np.array([whmean([sp_score_i, lod_score_i, ae_score_i], weights)
+              for sp_score_i, lod_score_i, ae_score_i in zip(sp_score, lod_score, ae_score)])
+
+    # scores = np.multiply(np.add(np.multiply(sp_score, w_sp),
+    #                             np.multiply(lod_score, w_lod),
+    #                             np.multiply(ae_score, w_ae)),
+    #                      sp_binary)
 
     ranking = np.argsort(-scores).tolist()
 
@@ -1441,7 +1445,7 @@ def log_info(mm_engine: Engine, mm_meta: MetaData, log_id: int):
         info['attributes'][r['at_name']] = r['at_v']
 
     tb_ctl: Table = mm_meta.tables['case_to_log']
-    query = select([distinct(tb_ctl.c.case_id)]).where(tb_ctl.c.log_id == log_id)
+    query = select([func.count(distinct(tb_ctl.c.case_id))]).where(tb_ctl.c.log_id == log_id)
 
     res = mm_engine.execute(query).scalar()
 
@@ -1452,3 +1456,10 @@ def log_info(mm_engine: Engine, mm_meta: MetaData, log_id: int):
         info['attributes']['case_notion'] = cn
 
     return info
+
+
+def whmean(x, w):
+    a = np.sum(w)
+    b = np.sum(np.divide(w, x))
+    h = a / b
+    return h
