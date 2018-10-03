@@ -700,24 +700,20 @@ def compute_ae_log(mm_engine: Engine, log_id: int, metadata: MetaData, support: 
 
 def compute_support_log(mm_engine: Engine, log_id: int, metadata: MetaData) -> int:
     tb_ctl: Table = metadata.tables['case_to_log']
-    tb_case: Table = metadata.tables['case']
-    tb_aitc: Table = metadata.tables['activity_instance_to_case']
-    tb_ai: Table = metadata.tables['activity_instance']
-    tb_ev: Table = metadata.tables['event']
+    # tb_case: Table = metadata.tables['case']
+    # tb_aitc: Table = metadata.tables['activity_instance_to_case']
+    # tb_ai: Table = metadata.tables['activity_instance']
+    # tb_ev: Table = metadata.tables['event']
     col_ctl_case_id: Column = tb_ctl.columns['case_id']
     col_ctl_log_id: Column = tb_ctl.columns['log_id']
-    col_case_id: Column = tb_case.columns['id']
-    col_aitc_case_id: Column = tb_aitc.columns['case_id']
-    col_aitc_ai_id: Column = tb_aitc.columns['activity_instance_id']
-    col_ai_id: Column = tb_ai.columns['id']
-    col_ev_ai_id: Column = tb_ev.columns['activity_instance_id']
+    # col_case_id: Column = tb_case.columns['id']
+    # col_aitc_case_id: Column = tb_aitc.columns['case_id']
+    # col_aitc_ai_id: Column = tb_aitc.columns['activity_instance_id']
+    # col_ai_id: Column = tb_ai.columns['id']
+    # col_ev_ai_id: Column = tb_ev.columns['activity_instance_id']
 
     q = select([col_ctl_case_id]).where(and_(
-        col_ctl_log_id == log_id,
-        col_ctl_case_id == col_case_id,
-        col_case_id == col_aitc_case_id,
-        col_aitc_ai_id == col_ai_id,
-        col_ai_id == col_ev_ai_id)).distinct().count()
+        col_ctl_log_id == log_id)).distinct().count()
 
     count = mm_engine.execute(q).scalar()
 
@@ -1193,10 +1189,16 @@ def compute_prediction_from_bounds(bounds: dict, w_sp_lb: float, w_lod_lb: float
     return predictions
 
 
-def compute_ranking(metrics: dict, mode_sp: float, max_sp: int, min_sp: int,
-                    mode_lod: float, max_lod: float, min_lod: float,
-                    mode_ae: float, max_ae: float, min_ae: float,
-                    w_sp: float=0.33, w_lod: float=0.33, w_ae: float=0.33) -> list:
+def compute_ranking(*args, **kwargs) -> list:
+    detailed_ranking = compute_detailed_ranking(*args, **kwargs)
+    ranking = list(detailed_ranking['cn_id'])
+    return ranking
+
+
+def compute_detailed_ranking(metrics: dict, mode_sp: float, max_sp: int, min_sp: int,
+                             mode_lod: float, max_lod: float, min_lod: float,
+                             mode_ae: float, max_ae: float, min_ae: float,
+                             w_sp: float=0.33, w_lod: float=0.33, w_ae: float=0.33) -> pd.DataFrame:
 
     sp = metrics['sp']
     lod = metrics['lod']
@@ -1232,21 +1234,22 @@ def compute_ranking(metrics: dict, mode_sp: float, max_sp: int, min_sp: int,
     lod_score = np.divide(beta.pdf(lod_scld, lod_a, lod_b), max_val_beta_lod)
     ae_score = np.divide(beta.pdf(ae_scld, ae_a, ae_b), max_val_beta_ae)
 
-    # # In case sp is 0, score should be 0
-    # sp_binary = [1 if v > 0.0 else 0 for v in sp]
-
     weights = [w_sp, w_lod, w_ae]
     scores = np.array([whmean([sp_score_i, lod_score_i, ae_score_i], weights)
               for sp_score_i, lod_score_i, ae_score_i in zip(sp_score, lod_score, ae_score)])
 
-    # scores = np.multiply(np.add(np.multiply(sp_score, w_sp),
-    #                             np.multiply(lod_score, w_lod),
-    #                             np.multiply(ae_score, w_ae)),
-    #                      sp_binary)
-
     ranking = np.argsort(-scores).tolist()
 
-    return ranking
+    rank_data = {'cn_id': ranking,
+                 'score': scores[ranking],
+                 'pred_sp': np.array(sp)[ranking],
+                 'pred_lod': np.array(lod)[ranking],
+                 'pred_ae': np.array(ae)[ranking]
+                 }
+
+    detailed_ranking = pd.DataFrame(rank_data)
+
+    return detailed_ranking
 
 
 def scale_minmax(values: list, max_v: float, min_v: float):
@@ -1444,12 +1447,12 @@ def log_info(mm_engine: Engine, mm_meta: MetaData, log_id: int):
         info['name'] = r['name']
         info['attributes'][r['at_name']] = r['at_v']
 
-    tb_ctl: Table = mm_meta.tables['case_to_log']
-    query = select([func.count(distinct(tb_ctl.c.case_id))]).where(tb_ctl.c.log_id == log_id)
-
-    res = mm_engine.execute(query).scalar()
-
-    info['cases'] = res
+    sp = compute_support_log(mm_engine, log_id, mm_meta)
+    info['support'] = sp
+    ae = compute_ae_log(mm_engine, log_id, mm_meta, sp)
+    info['ae'] = ae
+    lod = compute_lod_log(mm_engine, log_id, mm_meta, sp)
+    info['lod'] = lod
 
     if 'case_notion' in info['attributes']:
         cn = yaml.load(info['attributes']['case_notion'])

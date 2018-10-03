@@ -924,3 +924,48 @@ def load_list_classes(file):
         classes = json.load(open(file, mode='rt'))
 
     return classes
+
+
+def schema_stats(meta: MetaData):
+    colcount = []
+    tscolcount = []
+    pkcount = []
+    ukcount = []
+    fkcount = []
+    table_names = []
+
+    for tname in meta.tables:
+        t: Table = meta.tables[tname]
+        table_names.append(tname)
+        colcount.append(t.columns.__len__())
+        tscolcount.append(sum([1 for c in t.columns if ex.get_data_type(c) == 'timestamp']))
+        pkcount.append(1 if t.primary_key else 0)
+        ukcount.append(sum([1 for c in t.constraints if type(c) == UniqueConstraint]))
+        fkcount.append(sum([1 for c in t.constraints if type(c) == ForeignKeyConstraint]))
+        print('{}: {}'.format(t.fullname, t.columns.__len__()))
+
+    stats = {
+        'n_tables': colcount.__len__(),
+        'n_columns': sum(colcount),
+        'n_ts_cols': sum(tscolcount),
+        'avg_cols_p_table': np.mean(colcount),
+        'median_cols_p_table': np.median(colcount),
+        'avg_ts_cols_p_table': np.mean(tscolcount),
+        'mediam_ts_cols_p_table': np.median(tscolcount),
+        'n_pks': sum(pkcount),
+        'n_uks': sum(ukcount),
+        'n_fks': sum(fkcount),
+        'avg_uks_p_table': np.mean(ukcount),
+        'median_uks_p_table': np.median(ukcount),
+        'avg_fks_p_table': np.mean(fkcount),
+        'median_fks_p_table': np.median(fkcount),
+    }
+
+    return stats
+
+
+def count_rows(engine: Engine, meta: MetaData, class_name: str):
+    tb: Table = meta.tables[class_name]
+    query = tb.count()
+    res = engine.execute(query).scalar()
+    return res

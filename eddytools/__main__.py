@@ -2,25 +2,28 @@
 
 Usage:
   eddytools schema list-schemas <db_url>
-  eddytools schema list-classes <db_url>
+  eddytools schema list-classes <db_url> [--details] [--o=OUTPUT_FILE]
   eddytools schema discover <db_url> <output_dir> [--classes=CLASSES_FILE] [--max-fields=K] [--sampling=SAMPLES] [--resume]
+  eddytools schema stats <metadata_file>
   eddytools extract <db_url> <output_dir> [<schema_dir>] [--classes=CLASSES_FILE]
   eddytools events <input_db> <output_dir> [--build-events]
-  eddytools cases <input_db> <output_dir> [--build-logs --topk=K]
-  eddytools logs <input_db> (--list | --info_log=LOG_ID | --export_log=LOG_ID --o=OUTPUT_FILE | --print_cn=LOG_ID --o=OUTPUT_FILE [--show])
+  eddytools cases <input_db> <output_dir> [--build-logs --topk=K] [--print_cn=CN_ID --o=OUTPUT_FILE [--show]]
+  eddytools logs <input_db> (--list | --info_log=LOG_ID | --export_log=LOG_ID --o=OUTPUT_FILE | --print_cn_log=LOG_ID --o=OUTPUT_FILE [--show])
   eddytools (-h | --help)
   eddytools --version
 
 Options:
   -h --help                 Show this screen.
   --version                 Show version.
+  --details                 Show details per class
   --build-events            Build events based on discovered event definitions [default: false].
   --build-logs              Build event logs from case notions [default: false].
   --topk=K                  Show and build only top K case notions and logs
   --info_log=LOG_ID         Show information about the log
   --export_log=LOG_ID       Export the log in csv format in the file specified by --o=OUTPUT_FILE
-  --print_cn=LOG_ID         Generate a dot file with the case notion used to build log LOG_ID
-  --o=OUTPUT_FILE           Output file for a log or a case notion
+  --print_cn_log=LOG_ID     Generate a dot file with the case notion used to build log LOG_ID
+  --print_cn=CN_ID          Generate a dot file with the case notion with id CN_ID
+  --o=OUTPUT_FILE           Output file for stats, a log or a case notion
   --show                    Visualize the case notion graph in a pdf visualizer
   --classes=CLASSES_FILE    File in Json format with a list of class names to extract. If omitted, all will be extracted
   --max-fields=K              Maximum length of keys to discover [default: 4]
@@ -204,12 +207,13 @@ def case_notion_candidates_cached(mm_path, dump_dir, build_logs=False, topk=None
     pprint(params)
 
     if os.path.isfile(ranking_path):
-        ranking = json.load(open(ranking_path, 'rt'))
+        detailed_ranking = pd.DataFrame.from_csv(open(ranking_path, 'rt'))
     else:
-        ranking = cn.compute_ranking(pred, **params)
-        json.dump(ranking, open(ranking_path, 'wt'), indent=True)
+        detailed_ranking = cn.compute_detailed_ranking(pred, **params)
+        detailed_ranking.to_csv(open(ranking_path, 'wt'))
 
-    pprint(ranking)
+    ranking = detailed_ranking['cn_id']
+    pprint(detailed_ranking)
 
     if build_logs:
 
@@ -254,13 +258,24 @@ def export_log(mm_path, log_id, output_file):
     df.to_csv(output_file, index_label='idx')
 
 
-def print_cn(mm_path, log_id, output_file, view):
+def print_cn_log(mm_path, log_id, output_file, view):
     mm_engine = ex.create_mm_engine(mm_path)
     mm_meta = ex.get_mm_meta(mm_engine)
     info = cn.log_info(mm_engine, mm_meta, log_id)
     if 'case_notion' in info['attributes']:
         dump_cn_dot(mm_engine, mm_meta, info['attributes']['case_notion'], output_file, view)
     else:
+        raise Exception('No case notion to show')
+
+
+def print_cn(mm_path, cn_id, cn_dir, output_file, view):
+    mm_engine = ex.create_mm_engine(mm_path)
+    mm_meta = ex.get_mm_meta(mm_engine)
+    try:
+        candidates = pickle.load(open(Path(cn_dir, 'candidates.pkl'), 'rb'))
+        case_notion = candidates[cn_id]
+        dump_cn_dot(mm_engine, mm_meta, case_notion, output_file, view)
+    except:
         raise Exception('No case notion to show')
 
 
@@ -346,12 +361,51 @@ def schema_list_schemas(db_url):
     print(schemas_json)
 
 
-def schema_list_classes(db_url):
+def schema_list_classes(db_url, details=False, output_file=False):
     db_engine: Engine = ex.create_db_engine_from_url(db_url)
     metadata: MetaData = ex.get_metadata(db_engine)
     classes = es.retrieve_classes(metadata)
-    classes_json = json.dumps(classes, indent=True)
-    print(classes_json)
+    if details:
+        classes_details = []
+        for cl in classes:
+            rows = es.count_rows(db_engine, metadata, cl)
+            cl_det = {'cl': cl,
+                      'rows': rows}
+            classes_details.append(cl_det)
+            print(cl_det)
+        df = pd.DataFrame(classes_details)
+        if output_file:
+            df.to_csv(output_file)
+        with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+            print(df)
+    else:
+        classes_json = json.dumps(classes, indent=True)
+        if output_file:
+            json.dump(classes, open(output_file, 'wt'), indent=True)
+        print(classes_json)
+
+
+def print_schema_stats(meta_path):
+    meta: MetaData = pickle.load(open(meta_path, mode='rb'))
+    stats = es.schema_stats(meta)
+
+    print('# of tables: {}'.format(stats['n_tables']))
+    print('# of columns: {}'.format(stats['n_columns']))
+    print('# of timestamp columns: {}'.format(stats['n_ts_cols']))
+
+    print('Mean cols per table: {}'.format(stats['avg_cols_p_table']))
+    print('Median cols per table: {}'.format(stats['median_cols_p_table']))
+    print('Mean timestamp cols per table: {}'.format(stats['avg_ts_cols_p_table']))
+    print('Median timestamp cols per table: {}'.format(stats['mediam_ts_cols_p_table']))
+
+    print('# of pks: {}'.format(stats['n_pks']))
+    print('# of uks: {}'.format(stats['n_uks']))
+    print('# of fks: {}'.format(stats['n_fks']))
+
+    print('Mean uks per table: {}'.format(stats['avg_uks_p_table']))
+    print('Median uks per table: {}'.format(stats['median_uks_p_table']))
+    print('Mean fks per table: {}'.format(stats['avg_fks_p_table']))
+    print('Median fks per table: {}'.format(stats['median_fks_p_table']))
 
 
 if __name__ == '__main__':
@@ -363,7 +417,9 @@ if __name__ == '__main__':
         if arguments['list-schemas']:
             schema_list_schemas(db_url)
         elif arguments['list-classes']:
-            schema_list_classes(db_url)
+            details = arguments['--details']
+            output_file = arguments['--o']
+            schema_list_classes(db_url, details, output_file)
         elif arguments['discover']:
             output_dir = arguments['<output_dir>']
             classes_file = arguments['--classes']
@@ -372,6 +428,9 @@ if __name__ == '__main__':
             sampling = int(arguments['--sampling'])
             discover_schema(db_url, output_dir, classes_file, max_fields_key=max_fields,
                             resume=resume, sampling=sampling)
+        elif arguments['stats']:
+            metadata_file = arguments['<metadata_file>']
+            print_schema_stats(metadata_file)
     elif arguments['extract']:
         db_url = arguments['<db_url>']
         schema_dir = arguments['<schema_dir>']
@@ -394,7 +453,11 @@ if __name__ == '__main__':
         else:
             topk = None
         case_notion_candidates_cached(mm_path=input_mm, dump_dir=output_dir, build_logs=build_logs, topk=topk)
-
+        if arguments['--print_cn']:
+            cn_id = int(arguments['--print_cn'])
+            output_file = Path(arguments['--o'])
+            show = arguments['--show']
+            print_cn(input_mm, cn_id, output_dir, output_file, show)
     elif arguments['logs']:
         input_mm = Path(arguments['<input_db>'])
         if arguments['--list']:
@@ -402,11 +465,11 @@ if __name__ == '__main__':
         elif arguments['--info_log']:
             log_id = arguments['--info_log']
             info_log(input_mm, log_id)
-        elif arguments['--print_cn']:
-            log_id = arguments['--print_cn']
+        elif arguments['--print_cn_log']:
+            log_id = arguments['--print_cn_log']
             output_file = Path(arguments['--o'])
             show = arguments['--show']
-            print_cn(input_mm, log_id, output_file, show)
+            print_cn_log(input_mm, log_id, output_file, show)
         elif arguments['--export_log']:
             log_id = arguments['--export_log']
             output_file = Path(arguments['--o'])
