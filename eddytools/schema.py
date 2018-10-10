@@ -966,6 +966,6 @@ def schema_stats(meta: MetaData):
 
 def count_rows(engine: Engine, meta: MetaData, class_name: str):
     tb: Table = meta.tables[class_name]
-    query = tb.count()
+    query = select([func.count('*')]).select_from(tb)
     res = engine.execute(query).scalar()
     return res

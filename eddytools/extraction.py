@@ -97,8 +97,8 @@ def create_db_engine(dialect=None, host=None, username=None, password=None, port
     return engine
 
 
-def create_db_engine_from_url(db_url):
-    engine = create_engine(db_url, pool_pre_ping=True)
+def create_db_engine_from_url(db_url, **params):
+    engine = create_engine(db_url, pool_pre_ping=True, connect_args=params)
     return engine
 
 
