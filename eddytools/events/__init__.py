@@ -104,11 +104,17 @@ def train_model(mm_engine: Engine, mm_meta: MetaData, y_true_path: str,
     X_in_table = aid.compute_features(candidates_in_table, verbose=1)
     X_lookup = aid.compute_features(candidates_lookup, verbose=1)
 
+    print("Features computed")
+
     y_true_in_table = aid.load_y_true(candidates_in_table, y_true_path=y_true_path)
     y_true_lookup = aid.load_y_true(candidates_lookup, y_true_path=y_true_path)
 
+    print("Ground truth loaded")
+
     class_weight_in_table = compute_class_weight('balanced', [0, 1], y_true_in_table)
     class_weight_lookup = compute_class_weight('balanced', [0, 1], y_true_lookup)
+
+    print("Class weights computed")
 
     classifier_in_table = make_sklearn_pipeline(XGBClassifier(max_depth=2, n_estimators=10, random_state=1,
                                                               silent=False,
@@ -123,11 +129,17 @@ def train_model(mm_engine: Engine, mm_meta: MetaData, y_true_path: str,
 
     aid.set_model(classifiers)
 
+    print("Classifiers created")
+
     aid.train_model(X_in_table, y_true_in_table, candidate_type=CT_IN_TABLE)
     aid.train_model(X_lookup, y_true_lookup, candidate_type=CT_LOOKUP)
 
+    print("Classifiers trained")
+
     y_pred_in_table = aid.predict(X_in_table, candidate_type=CT_IN_TABLE)
     y_pred_lookup = aid.predict(X_lookup, candidate_type=CT_LOOKUP)
+
+    print("Predicted")
 
     scores_in_table = aid.score(y_true_in_table, y_pred_in_table)
 
