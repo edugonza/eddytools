@@ -111,9 +111,11 @@ def train_model(mm_engine: Engine, mm_meta: MetaData, y_true_path: str,
     class_weight_lookup = compute_class_weight('balanced', [0, 1], y_true_lookup)
 
     classifier_in_table = make_sklearn_pipeline(XGBClassifier(max_depth=2, n_estimators=10, random_state=1,
+                                                              silent=False,
                                                               scale_pos_weight=class_weight_in_table[1]))
 
     classifier_lookup = make_sklearn_pipeline(XGBClassifier(max_depth=2, n_estimators=10, random_state=1,
+                                                            silent=False,
                                                             scale_pos_weight=class_weight_lookup[1]))
 
     classifiers = {'in_table': classifier_in_table,
