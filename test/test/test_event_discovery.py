@@ -210,9 +210,9 @@ def test_trained_model_cached(openslex_train=train_openslex_file_path,
     features_test_lookup_path = '{}/features_lookup.json'.format(cached_dir_test)
 
     if not os.path.exists(cached_dir_test):
-        os.mkdir(cached_dir_test)
+        os.makedirs(cached_dir_test)
     if not os.path.exists(cached_dir_train):
-        os.mkdir(cached_dir_train)
+        os.makedirs(cached_dir_train)
 
     mm_engine_train = ex.create_mm_engine(openslex_train)
     mm_meta_train = ex.get_mm_meta(mm_engine_train)
