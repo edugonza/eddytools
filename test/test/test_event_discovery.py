@@ -262,8 +262,14 @@ def test_trained_model_cached(openslex_train=train_openslex_file_path,
     y_true_train_in_table = aid.load_y_true(candidates_in_table, y_true_path=ground_truth_train)
     y_true_train_lookup = aid.load_y_true(candidates_lookup, y_true_path=ground_truth_train)
 
-    class_weight_in_table = compute_class_weight('balanced', [0, 1], y_true_train_in_table)
-    class_weight_lookup = compute_class_weight('balanced', [0, 1], y_true_train_lookup)
+    try:
+        class_weight_in_table = compute_class_weight('balanced', [0, 1], y_true_train_in_table)
+    except:
+        class_weight_in_table = [1.0, 1.0]
+    try:
+        class_weight_lookup = compute_class_weight('balanced', [0, 1], y_true_train_lookup)
+    except:
+        class_weight_lookup = [1.0, 1.0]
 
     classifiers = {
         ev.CT_IN_TABLE: ev.make_sklearn_pipeline(XGBClassifier(max_depth=2, n_estimators=10, random_state=1,
