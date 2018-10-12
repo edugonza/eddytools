@@ -111,8 +111,14 @@ def train_model(mm_engine: Engine, mm_meta: MetaData, y_true_path: str,
 
     print("Ground truth loaded")
 
-    class_weight_in_table = compute_class_weight('balanced', [0, 1], y_true_in_table)
-    class_weight_lookup = compute_class_weight('balanced', [0, 1], y_true_lookup)
+    try:
+        class_weight_in_table = compute_class_weight('balanced', [0, 1], y_true_in_table)
+    except:
+        class_weight_in_table = compute_class_weight(None, [0, 1], y_true_in_table)
+    try:
+        class_weight_lookup = compute_class_weight('balanced', [0, 1], y_true_lookup)
+    except:
+        class_weight_lookup = compute_class_weight(None, [0, 1], y_true_lookup)
 
     print("Class weights computed")
 

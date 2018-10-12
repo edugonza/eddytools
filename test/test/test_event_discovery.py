@@ -155,8 +155,10 @@ def test_default_model(openslex=train_openslex_file_path, ground_truth=ground_tr
     pprint(scores_lookup)
 
 
-def test_trained_model(openslex_train, ground_truth_train,
-                       openslex_test, ground_truth_test):
+def test_trained_model(openslex_train=train_openslex_file_path,
+                       ground_truth_train=ground_truth_path,
+                       openslex_test=train_openslex_file_path,
+                       ground_truth_test=ground_truth_path):
 
     mm_engine_train = ex.create_mm_engine(openslex_train)
     mm_meta_train = ex.get_mm_meta(mm_engine_train)
@@ -185,9 +187,12 @@ def test_trained_model(openslex_train, ground_truth_train,
     pprint(scores_lookup)
 
 
-def test_trained_model_cached(openslex_train, ground_truth_train,
-                              openslex_test, ground_truth_test,
-                              cached_dir_train, cached_dir_test):
+def test_trained_model_cached(openslex_train=train_openslex_file_path,
+                              ground_truth_train=ground_truth_path,
+                              openslex_test=train_openslex_file_path,
+                              ground_truth_test=ground_truth_path,
+                              cached_dir_train='output/A/ev_disc',
+                              cached_dir_test='output/B/ev_disc'):
 
     ts_train_path = '{}/timestamps.json'.format(cached_dir_train)
     candidates_ts_fields_path = '{}/candidates_ts_fields.json'.format(cached_dir_train)
