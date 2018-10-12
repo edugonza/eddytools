@@ -1,0 +1,27 @@
+[
+ {
+  "timestamp_attribute": ["public.orderlines", "orderdate"],
+  "activity_identifier_attribute": null,
+  "relationship": null
+ },
+ {
+  "timestamp_attribute": ["public.orders", "orderdate"],
+  "activity_identifier_attribute": null,
+  "relationship": null
+ },
+ {
+  "timestamp_attribute": ["public.reorder", "date_low"],
+  "activity_identifier_attribute": null,
+  "relationship": null
+ },
+ {
+  "timestamp_attribute": ["public.reorder", "date_reordered"],
+  "activity_identifier_attribute": null,
+  "relationship": null
+ },
+ {
+  "timestamp_attribute": ["public.reorder", "date_expected"],
+  "activity_identifier_attribute": null,
+  "relationship": null
+ }
+]

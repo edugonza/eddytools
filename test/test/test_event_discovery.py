@@ -11,13 +11,16 @@ from sklearn.utils.class_weight import compute_class_weight
 mimic_file_path = 'output/mimic/sample-mimic.slexmm'
 mimic_ground_truth = 'data/mimic/ground_truth.json'
 
-train_openslex_file_path = 'data/adw/extracted-adw-mm.slexmm'
-dumps_dir = 'output/dumps/adw-ev-disc/'
+# train_openslex_file_path = 'data/adw/extracted-adw-mm.slexmm'
+train_openslex_file_path = 'data/ds2/extracted-ds2-mm.slexmm'
+# dumps_dir = 'output/dumps/adw-ev-disc/'
+dumps_dir = 'output/dumps/ds2-ev-disc/'
 
 modified_mm_path = '{}/mm-modified-events.slexmm'.format(dumps_dir)
 
 trained_model = '{}/model_ev_disc.pkl'.format(dumps_dir)
-ground_truth_path = 'data/adw/ground_truth.json'
+# ground_truth_path = 'data/adw/ground_truth.json'
+ground_truth_path = 'data/ds2/ground_truth.json'
 
 
 def test_candidates():
@@ -358,10 +361,10 @@ if __name__ == '__main__':
     # test_candidates()
     #
     print("Test Cached Event Creation")
-    test_candidates_cached()
+    # test_candidates_cached()
     #
     # print("Test Prediction with Default")
-    # test_default_model()
+    test_default_model()
 
     # if os.path.isfile(mimic_file_path):
         # print("Test Prediction with Default on MIMICIII")

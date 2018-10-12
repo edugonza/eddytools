@@ -58,12 +58,24 @@ class Encoder:
         encoded = []
         for d in decoded:
             timestamp_attribute_id = self.attribute_name_to_id[tuple(d['timestamp_attribute'])]
+            if d['timestamp_attribute']:
+                ts_at_name = '{}.{}'.format(d['timestamp_attribute'][0], d['timestamp_attribute'][1])
+            else:
+                ts_at_name = None
             activity_identifier_attribute_id = (self.attribute_name_to_id[tuple(d['activity_identifier_attribute'])]
                                                 if d['activity_identifier_attribute'] else None)
+            if d['activity_identifier_attribute']:
+                act_at_name = '{}.{}'.format(d['activity_identifier_attribute'][0], d['activity_identifier_attribute'][1])
+            else:
+                act_at_name = None
             relationship_id = (self.relationship_name_to_id[d['relationship']] if d['relationship'] else None)
+            rs_name = d['relationship']
             encoded.append(Candidate(timestamp_attribute_id=timestamp_attribute_id,
-                      activity_identifier_attribute_id=activity_identifier_attribute_id,
-                      relationship_id=relationship_id))
+                                     activity_identifier_attribute_id=activity_identifier_attribute_id,
+                                     relationship_id=relationship_id,
+                                     ts_at_name=ts_at_name,
+                                     act_at_name=act_at_name,
+                                     rs_name=rs_name))
         return encoded
 
     def inverse_transform(self, encoded):
