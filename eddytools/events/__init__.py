@@ -165,8 +165,15 @@ def train_model(mm_engine: Engine, mm_meta: MetaData, y_true_path: str,
 
 def ts_to_millis(ts: str):
     # d: datetime = dateparser.parse(ts) took too long. ciso8601 is much faster
-    d = ciso8601.parse_datetime(ts)
-    return int(d.timestamp() * 1000)
+    try:
+        d = ciso8601.parse_datetime(ts)
+        return int(d.timestamp() * 1000)
+    except ValueError as err:
+        try:
+            return int(ts)
+        except Exception as exc:
+            print("ValueError: {0}".format(err))
+            raise err
 
 
 def compute_events(mm_engine: Engine, mm_meta: MetaData, event_definitions: List[Candidate]):
