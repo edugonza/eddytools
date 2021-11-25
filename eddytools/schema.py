@@ -64,7 +64,8 @@ def filter_binary_columns(metadata: MetaData):
     for c in metadata.tables.values():
         cols_to_remove = [col for col in c.columns if isinstance(col.type, (_Binary, CLOB, BLOB, Text, NullType))]
         for col in cols_to_remove:
-            c.columns._data.pop(col.name)
+            if hasattr(c.columns, '_data'):
+                c.columns._data.pop(col.name)
 
 
 def retrieve_classes(metadata) -> list:
